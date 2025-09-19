@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is from monumental-i.com organization
+    function isMonumentalUser() {
+      return request.auth != null && 
+             request.auth.token.email != null && 
+             request.auth.token.email.matches('.*@monumental-i\\.com$');
+    }
+    
+    // Links collection - only monumental-i.com users can read/write
+    match /links/{slug} {
+      allow read, write: if isMonumentalUser();
+    }
+    
+    // Clicks collection - only monumental-i.com users can read
+    // Writes are handled by Cloud Functions only
+    match /clicks/{clickId} {
+      allow read: if isMonumentalUser();
+      allow write: if false; // Only Cloud Functions can write clicks
+    }
+    
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

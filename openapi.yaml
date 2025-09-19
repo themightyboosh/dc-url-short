@@ -1,0 +1,449 @@
+openapi: 3.0.3
+info:
+  title: Moni URL Shortener API
+  description: Production URL shortener with click tracking for monumental-i.com organization
+  version: 1.0.0
+  contact:
+    name: Monumental I
+    email: admin@monumental-i.com
+servers:
+  - url: https://us-central1-moni-url-short.cloudfunctions.net/api
+    description: Production server
+  - url: http://localhost:5001/moni-url-short/us-central1/api
+    description: Local development server
+
+security:
+  - FirebaseAuth: []
+
+paths:
+  /api/v1/health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the API
+      security: []
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: healthy
+                      timestamp:
+                        type: string
+                        format: date-time
+                      version:
+                        type: string
+                        example: "1.0.0"
+
+  /api/v1/links:
+    post:
+      summary: Create a new short link
+      description: Creates a new short link. Requires authentication with @monumental-i.com email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - longUrl
+                - createdBy
+              properties:
+                slug:
+                  type: string
+                  description: Custom slug (optional, auto-generated if not provided)
+                  example: my-custom-slug
+                  minLength: 1
+                  maxLength: 50
+                longUrl:
+                  type: string
+                  format: uri
+                  description: The long URL to shorten
+                  example: https://example.com/very-long-url
+                createdBy:
+                  type: string
+                  format: email
+                  description: Email of the user creating the link
+                  example: user@monumental-i.com
+                disabled:
+                  type: boolean
+                  description: Whether the link is disabled
+                  default: false
+                notes:
+                  type: string
+                  description: Optional notes about the link
+                  example: Marketing campaign link
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  description: Optional tags for categorization
+                  example: ["marketing", "campaign"]
+      responses:
+        '201':
+          description: Link created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Link'
+                  message:
+                    type: string
+                    example: Link created successfully
+        '400':
+          description: Invalid input data
+        '401':
+          description: Authentication required
+        '403':
+          description: Access restricted to monumental-i.com organization
+
+    get:
+      summary: List all links
+      description: Retrieves a paginated list of links. Requires authentication with @monumental-i.com email.
+      parameters:
+        - name: limit
+          in: query
+          description: Number of links to return (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of links to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: search
+          in: query
+          description: Search term for slug or URL
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of links retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Link'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /api/v1/links/{slug}:
+    get:
+      summary: Get a specific link
+      description: Retrieves details for a specific link by slug. Requires authentication with @monumental-i.com email.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The link slug
+          schema:
+            type: string
+            example: my-custom-slug
+      responses:
+        '200':
+          description: Link details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Link'
+        '404':
+          description: Link not found
+
+    patch:
+      summary: Update a link
+      description: Updates an existing link. Requires authentication with @monumental-i.com email.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The link slug
+          schema:
+            type: string
+            example: my-custom-slug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                longUrl:
+                  type: string
+                  format: uri
+                  description: Updated long URL
+                disabled:
+                  type: boolean
+                  description: Whether the link is disabled
+                notes:
+                  type: string
+                  description: Updated notes
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  description: Updated tags
+      responses:
+        '200':
+          description: Link updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Link'
+                  message:
+                    type: string
+                    example: Link updated successfully
+
+    delete:
+      summary: Delete a link
+      description: Deletes a link permanently. Requires authentication with @monumental-i.com email.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The link slug
+          schema:
+            type: string
+            example: my-custom-slug
+      responses:
+        '200':
+          description: Link deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Link deleted successfully
+
+  /api/v1/links/{slug}/clicks:
+    get:
+      summary: Get click logs for a link
+      description: Retrieves click logs for a specific link. Requires authentication with @monumental-i.com email.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The link slug
+          schema:
+            type: string
+            example: my-custom-slug
+        - name: from
+          in: query
+          description: Start date for click logs (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: End date for click logs (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          description: Number of clicks to return (max 200)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          description: Number of clicks to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Click logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Click'
+
+components:
+  securitySchemes:
+    FirebaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase Authentication JWT token
+
+  schemas:
+    Link:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Document ID
+          example: my-custom-slug
+        slug:
+          type: string
+          description: The short URL slug
+          example: my-custom-slug
+        longUrl:
+          type: string
+          format: uri
+          description: The original long URL
+          example: https://example.com/very-long-url
+        createdAt:
+          type: string
+          format: date-time
+          description: When the link was created
+        createdBy:
+          type: string
+          format: email
+          description: Email of the user who created the link
+          example: user@monumental-i.com
+        disabled:
+          type: boolean
+          description: Whether the link is disabled
+          default: false
+        clickCount:
+          type: integer
+          description: Total number of clicks
+          minimum: 0
+        lastClickedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the link was last clicked
+        notes:
+          type: string
+          nullable: true
+          description: Optional notes about the link
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Optional tags for categorization
+
+    Click:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Click document ID
+        slug:
+          type: string
+          description: The link slug that was clicked
+        ts:
+          type: string
+          format: date-time
+          description: When the click occurred
+        ip:
+          type: string
+          description: IP address of the clicker
+          example: 192.168.1.1
+        userAgent:
+          type: string
+          description: User agent string of the clicker
+        referer:
+          type: string
+          nullable: true
+          description: Referer URL (if available)
+        hostname:
+          type: string
+          nullable: true
+          description: Reverse DNS hostname (if available)
+        country:
+          type: string
+          nullable: true
+          description: Country code (reserved for future use)
+
+    Pagination:
+      type: object
+      properties:
+        limit:
+          type: integer
+          description: Number of items per page
+        offset:
+          type: integer
+          description: Number of items skipped
+        total:
+          type: integer
+          description: Total number of items
+        hasMore:
+          type: boolean
+          description: Whether there are more items available
+
+  examples:
+    CreateLinkRequest:
+      summary: Example create link request
+      value:
+        slug: marketing-campaign-2024
+        longUrl: https://monumental-i.com/campaigns/holiday-sale
+        createdBy: marketing@monumental-i.com
+        notes: Holiday marketing campaign link
+        tags: ["marketing", "holiday", "2024"]
+        disabled: false
+
+    CreateLinkResponse:
+      summary: Example create link response
+      value:
+        success: true
+        data:
+          id: marketing-campaign-2024
+          slug: marketing-campaign-2024
+          longUrl: https://monumental-i.com/campaigns/holiday-sale
+          createdAt: "2024-01-15T10:30:00Z"
+          createdBy: marketing@monumental-i.com
+          disabled: false
+          clickCount: 0
+          lastClickedAt: null
+          notes: Holiday marketing campaign link
+          tags: ["marketing", "holiday", "2024"]
+        message: Link created successfully

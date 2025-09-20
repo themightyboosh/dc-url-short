@@ -10,6 +10,19 @@ const api = axios.create({
   },
 })
 
+// Add cache-busting for development and multi-window scenarios
+api.interceptors.request.use((config) => {
+  // Add timestamp to prevent caching in multi-window scenarios
+  if (config.method === 'get') {
+    config.params = {
+      ...config.params,
+      _t: Date.now(),
+      _v: '1.0.0' // Version for cache busting
+    }
+  }
+  return config
+})
+
 // Add auth token to requests
 api.interceptors.request.use(async (config) => {
   const token = await getAuthToken()

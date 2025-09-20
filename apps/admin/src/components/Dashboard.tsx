@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
+import { useWindowFocusRefresh, useMultiWindowDetection } from '../hooks/useMultiWindow'
 import {
   Box,
   Button,
@@ -30,7 +31,7 @@ import {
   Checkbox,
   Switch
 } from '@chakra-ui/react'
-import { SearchIcon, PlusIcon, CopyIcon, ExternalLinkIcon, BarChart3Icon } from 'lucide-react'
+import { SearchIcon, PlusIcon, CopyIcon, ExternalLinkIcon, BarChart3Icon, TrashIcon } from 'lucide-react'
 import { linksApi, settingsApi } from '../lib/api'
 import CreateLinkModal from './CreateLinkModal'
 import { formatDistanceToNow } from 'date-fns'
@@ -42,6 +43,10 @@ export default function Dashboard() {
   const toast = useToast()
   const queryClient = useQueryClient()
 
+  // Multi-window detection and focus refresh
+  const { isRefreshing } = useWindowFocusRefresh()
+  useMultiWindowDetection()
+
   const { data: linksData, isLoading, error } = useQuery(
     ['links', page, searchTerm],
     () => linksApi.list({ 
@@ -51,6 +56,9 @@ export default function Dashboard() {
     }),
     {
       keepPreviousData: true,
+      staleTime: 30 * 1000, // 30 seconds - shorter for multi-window scenarios
+      refetchOnWindowFocus: true,
+      refetchOnMount: true,
     }
   )
 
@@ -58,7 +66,9 @@ export default function Dashboard() {
     'settings',
     () => settingsApi.get(),
     {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 30 * 1000, // 30 seconds - shorter for multi-window scenarios
+      refetchOnWindowFocus: true,
+      refetchOnMount: true,
       onError: (error: any) => {
         console.error('Settings fetch error:', error)
       }
@@ -114,6 +124,30 @@ export default function Dashboard() {
     }
   )
 
+  const deleteLinkMutation = useMutation(
+    (slug: string) => linksApi.delete(slug),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('links')
+        toast({
+          title: 'Link deleted successfully',
+          status: 'success',
+          duration: 2000,
+          isClosable: true,
+        })
+      },
+      onError: (error: any) => {
+        toast({
+          title: 'Failed to delete link',
+          description: error.response?.data?.error || 'Please try again',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        })
+      }
+    }
+  )
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
     toast({
@@ -122,6 +156,10 @@ export default function Dashboard() {
       duration: 2000,
       isClosable: true,
     })
+  }
+
+  const handleDeleteLink = (slug: string) => {
+    deleteLinkMutation.mutate(slug)
   }
 
   const getShortUrl = (slug: string) => {
@@ -191,7 +229,14 @@ export default function Dashboard() {
 
       {/* Header */}
       <Flex justifyContent="space-between" alignItems="center">
-        <Heading size="lg">Monumental Link Manager</Heading>
+        <HStack>
+          <Heading size="lg">Monumental URL Shortener</Heading>
+          {isRefreshing && (
+            <Badge colorScheme="blue" variant="subtle">
+              Refreshing...
+            </Badge>
+          )}
+        </HStack>
         <Button
           leftIcon={<PlusIcon size={16} />}
           colorScheme="brand"
@@ -319,6 +364,15 @@ export default function Dashboard() {
                       size="sm"
                       variant="ghost"
                       onClick={() => window.open(getShortUrl(link.slug), '_blank')}
+                    />
+                    <IconButton
+                      aria-label="Delete link"
+                      icon={<TrashIcon size={14} />}
+                      size="sm"
+                      variant="ghost"
+                      colorScheme="red"
+                      onClick={() => handleDeleteLink(link.slug)}
+                      isLoading={deleteLinkMutation.isLoading}
                     />
                   </HStack>
                 </Td>

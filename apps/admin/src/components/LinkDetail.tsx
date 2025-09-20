@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
+import { useWindowFocusRefresh, useMultiWindowDetection } from '../hooks/useMultiWindow'
 import {
   Box,
   VStack,
@@ -36,10 +37,19 @@ export default function LinkDetail() {
   const toast = useToast()
   const queryClient = useQueryClient()
 
+  // Multi-window detection and focus refresh
+  useWindowFocusRefresh()
+  useMultiWindowDetection()
+
   const { data: link, isLoading: linkLoading } = useQuery(
     ['link', slug],
     () => linksApi.get(slug!),
-    { enabled: !!slug }
+    { 
+      enabled: !!slug,
+      staleTime: 30 * 1000, // 30 seconds - shorter for multi-window scenarios
+      refetchOnWindowFocus: true,
+      refetchOnMount: true,
+    }
   )
 
   const { data: clicks, isLoading: clicksLoading } = useQuery(
@@ -53,7 +63,12 @@ export default function LinkDetail() {
         limit: 100
       })
     },
-    { enabled: !!slug }
+    { 
+      enabled: !!slug,
+      staleTime: 30 * 1000, // 30 seconds - shorter for multi-window scenarios
+      refetchOnWindowFocus: true,
+      refetchOnMount: true,
+    }
   )
 
   const updateMutation = useMutation(

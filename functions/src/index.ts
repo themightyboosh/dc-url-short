@@ -14,7 +14,10 @@ import {
   updateSettings,
   healthCheck,
   getDocumentation,
-  requireAdmin 
+  requireAdmin,
+  createShortLinkFromGoogleDocs,
+  listGoogleDocsLinks,
+  createBatchGoogleDocsLinks
 } from './api';
 import { 
   reverseDnsLookup, 
@@ -73,6 +76,11 @@ app.get('/api/v1/settings', requireAdmin, getSettings);
 app.patch('/api/v1/settings', requireAdmin, updateSettings);
 app.get('/api/v1/health', healthCheck);
 app.get('/api/v1/docs', getDocumentation);
+
+// Google Docs Integration Routes
+app.post('/api/v1/google-docs/webhook', createShortLinkFromGoogleDocs);
+app.get('/api/v1/google-docs/links', listGoogleDocsLinks);
+app.post('/api/v1/google-docs/batch', createBatchGoogleDocsLinks);
 
 // Export the Express app as a Cloud Function
 export const api = functions.https.onRequest(app);

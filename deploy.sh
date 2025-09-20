@@ -10,7 +10,7 @@ echo "🚀 Starting deployment of Moni URL Shortener..."
 # Check if Firebase CLI is installed
 if ! command -v firebase &> /dev/null; then
     echo "❌ Firebase CLI not found. Please install it first:"
-    echo "npm install -g firebase-tools"
+    echo "pnpm install -g firebase-tools"
     exit 1
 fi
 
@@ -22,20 +22,20 @@ fi
 
 # Install dependencies
 echo "📦 Installing dependencies..."
-npm install
+pnpm install
 
 # Build admin app
 echo "🏗️ Building admin app..."
 cd apps/admin
-npm install
-npm run build
+pnpm install
+pnpm run build
 cd ../..
 
 # Build functions
 echo "🏗️ Building Cloud Functions..."
 cd functions
-npm install
-npm run build
+pnpm install
+pnpm run build
 cd ..
 
 # Deploy to Firebase

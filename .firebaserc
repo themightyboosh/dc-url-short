@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "moni-url-short"
+  },
+  "targets": {
+    "moni-url-short": {
+      "hosting": {
+        "admin": [
+          "go-monumental-i"
+        ]
+      }
+    }
+  }
+}

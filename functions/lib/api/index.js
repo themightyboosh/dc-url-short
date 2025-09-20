@@ -33,6 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.createBatchGoogleDocsLinks = exports.listGoogleDocsLinks = exports.createShortLinkFromGoogleDocs = void 0;
 exports.requireAdmin = requireAdmin;
 exports.createLink = createLink;
 exports.listLinks = listLinks;
@@ -49,6 +50,11 @@ const admin = __importStar(require("firebase-admin"));
 const zod_1 = require("zod");
 const types_1 = require("../types");
 const utils_1 = require("../utils");
+// Import Google Docs functions
+const google_docs_1 = require("./google-docs");
+Object.defineProperty(exports, "createShortLinkFromGoogleDocs", { enumerable: true, get: function () { return google_docs_1.createShortLinkFromGoogleDocs; } });
+Object.defineProperty(exports, "listGoogleDocsLinks", { enumerable: true, get: function () { return google_docs_1.listGoogleDocsLinks; } });
+Object.defineProperty(exports, "createBatchGoogleDocsLinks", { enumerable: true, get: function () { return google_docs_1.createBatchGoogleDocsLinks; } });
 // Get Firestore instance
 const getDb = () => {
     if (!admin.apps.length) {
@@ -199,7 +205,8 @@ async function updateLink(req, res) {
 async function deleteLink(req, res) {
     try {
         const { slug } = req.params;
-        if (!(0, utils_1.isValidSlug)(slug)) {
+        // For deletion, we allow any slug that exists (more permissive than creation)
+        if (!slug || slug.length === 0 || slug.length > 100) {
             return res.status(400).json((0, utils_1.createApiResponse)(false, null, 'Invalid slug format'));
         }
         const docRef = getDb().collection('links').doc(slug);
@@ -389,6 +396,11 @@ async function getDocumentation(req, res) {
             system: {
                 health: 'GET /api/v1/health',
                 docs: 'GET /api/v1/docs'
+            },
+            googleDocs: {
+                webhook: 'POST /api/v1/google-docs/webhook',
+                list: 'GET /api/v1/google-docs/links',
+                batch: 'POST /api/v1/google-docs/batch'
             }
         }
     }));

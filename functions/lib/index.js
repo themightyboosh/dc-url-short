@@ -88,6 +88,10 @@ app.get('/api/v1/settings', api_1.requireAdmin, api_1.getSettings);
 app.patch('/api/v1/settings', api_1.requireAdmin, api_1.updateSettings);
 app.get('/api/v1/health', api_1.healthCheck);
 app.get('/api/v1/docs', api_1.getDocumentation);
+// Google Docs Integration Routes
+app.post('/api/v1/google-docs/webhook', api_1.createShortLinkFromGoogleDocs);
+app.get('/api/v1/google-docs/links', api_1.listGoogleDocsLinks);
+app.post('/api/v1/google-docs/batch', api_1.createBatchGoogleDocsLinks);
 // Export the Express app as a Cloud Function
 exports.api = functions.https.onRequest(app);
 // Redirect function for short URLs

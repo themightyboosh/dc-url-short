@@ -15,6 +15,12 @@ import {
   createApiResponse,
   convertTimestamps
 } from '../utils';
+// Import Google Docs functions
+import { 
+  createShortLinkFromGoogleDocs,
+  listGoogleDocsLinks,
+  createBatchGoogleDocsLinks
+} from './google-docs';
 
 // Get Firestore instance
 const getDb = () => {
@@ -218,7 +224,8 @@ export async function deleteLink(req: AuthenticatedRequest, res: Response) {
   try {
     const { slug } = req.params;
 
-    if (!isValidSlug(slug)) {
+    // For deletion, we allow any slug that exists (more permissive than creation)
+    if (!slug || slug.length === 0 || slug.length > 100) {
       return res.status(400).json(createApiResponse(false, null, 'Invalid slug format'));
     }
 
@@ -434,7 +441,19 @@ export async function getDocumentation(req: Request, res: Response) {
       system: {
         health: 'GET /api/v1/health',
         docs: 'GET /api/v1/docs'
+      },
+      googleDocs: {
+        webhook: 'POST /api/v1/google-docs/webhook',
+        list: 'GET /api/v1/google-docs/links',
+        batch: 'POST /api/v1/google-docs/batch'
       }
     }
   }));
 }
+
+// Export Google Docs functions
+export { 
+  createShortLinkFromGoogleDocs,
+  listGoogleDocsLinks,
+  createBatchGoogleDocsLinks
+};

@@ -21,11 +21,9 @@ import {
   Tag,
   TagLabel,
   TagCloseButton,
-  InputGroup,
-  InputRightElement,
-  IconButton
+  Checkbox
 } from '@chakra-ui/react'
-import { PlusIcon, CopyIcon } from 'lucide-react'
+import { PlusIcon } from 'lucide-react'
 import { linksApi, CreateLinkData } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
 
@@ -40,6 +38,7 @@ export default function CreateLinkModal({ isOpen, onClose }: CreateLinkModalProp
     longUrl: '',
     notes: '',
     tags: [] as string[],
+    emailAlerts: false,
   })
   const [tagInput, setTagInput] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -52,7 +51,7 @@ export default function CreateLinkModal({ isOpen, onClose }: CreateLinkModalProp
       queryClient.invalidateQueries('links')
       toast({
         title: 'Link created successfully',
-        description: `Short URL: https://go.monumental-i.com/s/${data.slug}`,
+        description: `Short URL created: ${data.slug}`,
         status: 'success',
         duration: 5000,
         isClosable: true,
@@ -71,7 +70,7 @@ export default function CreateLinkModal({ isOpen, onClose }: CreateLinkModalProp
   })
 
   const handleClose = () => {
-    setFormData({ slug: '', longUrl: '', notes: '', tags: [] })
+    setFormData({ slug: '', longUrl: '', notes: '', tags: [], emailAlerts: false })
     setTagInput('')
     setErrors({})
     onClose()
@@ -101,6 +100,7 @@ export default function CreateLinkModal({ isOpen, onClose }: CreateLinkModalProp
       createdBy: user.email,
       notes: formData.notes || undefined,
       tags: formData.tags.length > 0 ? formData.tags : undefined,
+      emailAlerts: formData.emailAlerts,
     }
 
     createMutation.mutate(linkData)
@@ -123,17 +123,6 @@ export default function CreateLinkModal({ isOpen, onClose }: CreateLinkModalProp
     }))
   }
 
-  const copyShortUrl = () => {
-    if (formData.slug) {
-      navigator.clipboard.writeText(`https://go.monumental-i.com/s/${formData.slug}`)
-      toast({
-        title: 'Copied to clipboard',
-        status: 'success',
-        duration: 2000,
-        isClosable: true,
-      })
-    }
-  }
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} size="lg">
@@ -160,29 +149,30 @@ export default function CreateLinkModal({ isOpen, onClose }: CreateLinkModalProp
 
               <FormControl>
                 <FormLabel>Custom Slug (optional)</FormLabel>
-                <InputGroup>
-                  <Input
-                    placeholder="my-custom-slug"
-                    value={formData.slug}
-                    onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
-                    bg="gray.700"
-                    borderColor="gray.600"
-                    _focus={{ borderColor: 'brand.500' }}
-                  />
-                  <InputRightElement>
-                    <IconButton
-                      aria-label="Copy short URL"
-                      icon={<CopyIcon size={14} />}
-                      size="sm"
-                      variant="ghost"
-                      onClick={copyShortUrl}
-                      isDisabled={!formData.slug}
-                    />
-                  </InputRightElement>
-                </InputGroup>
+                <Input
+                  placeholder="my-custom-slug"
+                  value={formData.slug}
+                  onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
+                  bg="gray.700"
+                  borderColor="gray.600"
+                  _focus={{ borderColor: 'brand.500' }}
+                />
                 <Text fontSize="sm" color="gray.400" mt={1}>
                   If empty, a random slug will be generated
                 </Text>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Email Alerts</FormLabel>
+                <Checkbox
+                  isChecked={formData.emailAlerts}
+                  onChange={(e) => setFormData(prev => ({ ...prev, emailAlerts: e.target.checked }))}
+                  colorScheme="brand"
+                >
+                  <Text fontSize="sm" color="gray.400">
+                    Send email alerts to Google authorized users when this link is clicked
+                  </Text>
+                </Checkbox>
               </FormControl>
 
               <FormControl>

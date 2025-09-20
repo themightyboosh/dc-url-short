@@ -12,8 +12,7 @@ import {
   MenuList,
   MenuItem,
   Avatar,
-  Text,
-  IconButton
+  Text
 } from '@chakra-ui/react'
 import { ChevronDownIcon, LogOutIcon, SettingsIcon } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'

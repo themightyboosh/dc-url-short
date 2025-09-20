@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request } from 'express';
 import { z } from 'zod';
 
 // Link data model
@@ -11,7 +11,9 @@ export const LinkSchema = z.object({
   clickCount: z.number().default(0),
   lastClickedAt: z.date().nullable().default(null),
   notes: z.string().optional(),
-  tags: z.array(z.string()).optional()
+  tags: z.array(z.string()).optional(),
+  emailAlerts: z.boolean().default(false),
+  updatedAt: z.date().optional()
 });
 
 export const CreateLinkSchema = LinkSchema.omit({
@@ -34,7 +36,11 @@ export const ClickSchema = z.object({
   userAgent: z.string(),
   referer: z.string().nullable(),
   hostname: z.string().nullable(),
-  country: z.string().nullable()
+  country: z.string().nullable(),
+  region: z.string().nullable(),
+  city: z.string().nullable(),
+  timezone: z.string().nullable(),
+  isp: z.string().nullable()
 });
 
 // API response types

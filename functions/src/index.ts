@@ -1,7 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import * as express from 'express';
-import * as cors from 'cors';
+import express from 'express';
+import cors from 'cors';
 import { 
   createLink, 
   listLinks, 
@@ -14,7 +14,8 @@ import {
 } from './api';
 import { 
   reverseDnsLookup, 
-  getClientIp 
+  getClientIp,
+  getGeolocation
 } from './utils';
 
 // Initialize Firebase Admin
@@ -24,7 +25,12 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['https://go.monumental-i.com'],
+  origin: [
+    'https://go.monumental-i.com',
+    'https://moni-url-short.web.app',
+    'https://moni-url-short.firebaseapp.com'
+  ],
+  
   credentials: true
 }));
 app.use(express.json());
@@ -65,23 +71,39 @@ export const api = functions.https.onRequest(app);
 // Redirect function for short URLs
 export const redirect = functions.https.onRequest(async (req, res) => {
   try {
-    const slug = req.path.split('/s/')[1];
+    const path = req.path;
+    
+        // Skip admin routes, API routes, and static files
+        if (path.startsWith('/admin') || 
+            path.startsWith('/api') || 
+            path.startsWith('/assets') ||
+            path.startsWith('/static') ||
+            path.includes('.')) {
+          res.status(404).json({ error: 'Not found' });
+          return;
+        }
+    
+    // Extract slug from path (remove leading slash)
+    const slug = path.substring(1);
     
     if (!slug) {
-      return res.status(404).json({ error: 'Not found' });
+      res.status(404).json({ error: 'Not found' });
+      return;
     }
 
     const db = admin.firestore();
     const linkDoc = await db.collection('links').doc(slug).get();
 
     if (!linkDoc.exists) {
-      return res.status(404).json({ error: 'Short URL not found' });
+      res.status(404).json({ error: 'Short URL not found' });
+      return;
     }
 
     const linkData = linkDoc.data();
     
     if (linkData?.disabled) {
-      return res.status(404).json({ error: 'Short URL is disabled' });
+      res.status(404).json({ error: 'Short URL is disabled' });
+      return;
     }
 
     // Fire-and-forget click logging
@@ -98,7 +120,7 @@ export const redirect = functions.https.onRequest(async (req, res) => {
     });
 
     // Redirect to the long URL
-    res.redirect(302, linkData.longUrl);
+    res.redirect(302, linkData?.longUrl || '');
   } catch (error) {
     console.error('Redirect error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -112,8 +134,11 @@ async function logClick(slug: string, req: any) {
     const userAgent = req.headers['user-agent'] || '';
     const referer = req.headers.referer || null;
     
-    // Attempt reverse DNS lookup (fire-and-forget)
-    const hostname = await reverseDnsLookup(ip);
+    // Attempt reverse DNS lookup and geolocation (fire-and-forget)
+    const [hostname, geolocation] = await Promise.all([
+      reverseDnsLookup(ip),
+      getGeolocation(ip)
+    ]);
 
     const clickData = {
       slug,
@@ -122,7 +147,11 @@ async function logClick(slug: string, req: any) {
       userAgent,
       referer,
       hostname,
-      country: null // Reserved for future geolocation
+      country: geolocation.country,
+      region: geolocation.region,
+      city: geolocation.city,
+      timezone: geolocation.timezone,
+      isp: geolocation.isp
     };
 
     await admin.firestore().collection('clicks').add(clickData);

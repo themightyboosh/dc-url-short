@@ -192,3 +192,8 @@ temp/
 .Trashes
 ehthumbs.db
 Thumbs.db
+moni-url-short-key.json
+*.key.json
+env.local
+apps/admin/env.local
+functions/env.local

@@ -1,9 +1,7 @@
-import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import {
   Box,
-  Button,
   VStack,
   HStack,
   Text,
@@ -21,15 +19,15 @@ import {
   Th,
   Td,
   Switch,
+  Checkbox,
   useToast,
   Spinner,
   Center,
   IconButton,
-  Tooltip,
-  Divider
+  Tooltip
 } from '@chakra-ui/react'
-import { ArrowLeftIcon, CopyIcon, ExternalLinkIcon, CalendarIcon } from 'lucide-react'
-import { linksApi, Link, Click } from '../lib/api'
+import { ArrowLeftIcon, CopyIcon, ExternalLinkIcon } from 'lucide-react'
+import { linksApi, Click, UpdateLinkData } from '../lib/api'
 import { formatDistanceToNow, format } from 'date-fns'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 
@@ -38,7 +36,6 @@ export default function LinkDetail() {
   const navigate = useNavigate()
   const toast = useToast()
   const queryClient = useQueryClient()
-  const [dateRange, setDateRange] = useState(7) // days
 
   const { data: link, isLoading: linkLoading } = useQuery(
     ['link', slug],
@@ -47,10 +44,10 @@ export default function LinkDetail() {
   )
 
   const { data: clicks, isLoading: clicksLoading } = useQuery(
-    ['clicks', slug, dateRange],
+    ['clicks', slug],
     () => {
       const to = new Date()
-      const from = new Date(to.getTime() - dateRange * 24 * 60 * 60 * 1000)
+      const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000)
       return linksApi.getClicks(slug!, {
         from: from.toISOString(),
         to: to.toISOString(),
@@ -61,7 +58,7 @@ export default function LinkDetail() {
   )
 
   const updateMutation = useMutation(
-    (data: { disabled?: boolean }) => linksApi.update(slug!, data),
+    (data: UpdateLinkData) => linksApi.update(slug!, data),
     {
       onSuccess: () => {
         queryClient.invalidateQueries(['link', slug])
@@ -94,7 +91,7 @@ export default function LinkDetail() {
   }
 
   const getShortUrl = (slug: string) => {
-    return `https://go.monumental-i.com/s/${slug}`
+    return `https://go.monumental-i.com/${slug}`
   }
 
   // Process clicks data for chart
@@ -102,8 +99,15 @@ export default function LinkDetail() {
     const dailyClicks: Record<string, number> = {}
     
     clicks.forEach(click => {
-      const date = format(new Date(click.ts), 'yyyy-MM-dd')
-      dailyClicks[date] = (dailyClicks[date] || 0) + 1
+      try {
+        const date = new Date(click.ts);
+        if (!isNaN(date.getTime())) {
+          const dateStr = format(date, 'yyyy-MM-dd');
+          dailyClicks[dateStr] = (dailyClicks[dateStr] || 0) + 1;
+        }
+      } catch {
+        // Skip invalid dates
+      }
     })
 
     return Object.entries(dailyClicks)
@@ -208,13 +212,28 @@ export default function LinkDetail() {
 
           <HStack justifyContent="space-between">
             <Text fontSize="sm" color="gray.400">
-              Created {formatDistanceToNow(new Date(link.createdAt), { addSuffix: true })}
+              Created {link.createdAt ? (() => {
+                try {
+                  const date = new Date(link.createdAt);
+                  return isNaN(date.getTime()) ? 'Invalid date' : formatDistanceToNow(date, { addSuffix: true });
+                } catch {
+                  return 'Invalid date';
+                }
+              })() : 'No date'}
             </Text>
             <HStack>
               <Text fontSize="sm" color="gray.400">Status:</Text>
               <Switch
                 isChecked={!link.disabled}
                 onChange={(e) => updateMutation.mutate({ disabled: !e.target.checked })}
+                colorScheme="brand"
+              />
+            </HStack>
+            <HStack>
+              <Text fontSize="sm" color="gray.400">Email Alerts:</Text>
+              <Checkbox
+                isChecked={link.emailAlerts || false}
+                onChange={(e) => updateMutation.mutate({ emailAlerts: e.target.checked })}
                 colorScheme="brand"
               />
             </HStack>
@@ -231,16 +250,20 @@ export default function LinkDetail() {
         <Stat bg="gray.800" p={4} borderRadius="lg">
           <StatLabel>Last Clicked</StatLabel>
           <StatNumber color="green.500" fontSize="lg">
-            {link.lastClickedAt 
-              ? formatDistanceToNow(new Date(link.lastClickedAt), { addSuffix: true })
-              : 'Never'
-            }
+            {link.lastClickedAt ? (() => {
+              try {
+                const date = new Date(link.lastClickedAt);
+                return isNaN(date.getTime()) ? 'Invalid date' : formatDistanceToNow(date, { addSuffix: true });
+              } catch {
+                return 'Invalid date';
+              }
+            })() : 'Never'}
           </StatNumber>
         </Stat>
         <Stat bg="gray.800" p={4} borderRadius="lg">
           <StatLabel>Recent Clicks</StatLabel>
           <StatNumber color="blue.500">{clicks?.length || 0}</StatNumber>
-          <StatHelpText>Last {dateRange} days</StatHelpText>
+          <StatHelpText>Last 7 days</StatHelpText>
         </Stat>
       </SimpleGrid>
 
@@ -289,50 +312,76 @@ export default function LinkDetail() {
           </Center>
         ) : clicks && clicks.length > 0 ? (
           <Table variant="simple" colorScheme="gray">
-            <Thead bg="gray.700">
-              <Tr>
-                <Th color="gray.300">Timestamp</Th>
-                <Th color="gray.300">IP Address</Th>
-                <Th color="gray.300">User Agent</Th>
-                <Th color="gray.300">Referer</Th>
-                <Th color="gray.300">Hostname</Th>
-              </Tr>
-            </Thead>
+                <Thead bg="gray.700">
+                  <Tr>
+                    <Th color="gray.300">Timestamp</Th>
+                    <Th color="gray.300">Location</Th>
+                    <Th color="gray.300">IP Address</Th>
+                    <Th color="gray.300">ISP</Th>
+                    <Th color="gray.300">Referer</Th>
+                  </Tr>
+                </Thead>
             <Tbody>
-              {clicks.slice(0, 20).map((click) => (
-                <Tr key={click.id} _hover={{ bg: 'gray.750' }}>
-                  <Td>
-                    <Text fontSize="sm">
-                      {format(new Date(click.ts), 'MMM dd, HH:mm')}
-                    </Text>
-                  </Td>
-                  <Td>
-                    <Text fontFamily="mono" fontSize="sm">
-                      {click.ip}
-                    </Text>
-                  </Td>
-                  <Td maxW="200px">
-                    <Text fontSize="sm" isTruncated title={click.userAgent}>
-                      {click.userAgent}
-                    </Text>
-                  </Td>
-                  <Td maxW="150px">
-                    <Text fontSize="sm" isTruncated title={click.referer || 'Direct'}>
-                      {click.referer || 'Direct'}
-                    </Text>
-                  </Td>
-                  <Td>
-                    <Text fontSize="sm" color="gray.400">
-                      {click.hostname || 'Unknown'}
-                    </Text>
-                  </Td>
-                </Tr>
-              ))}
+                  {clicks.slice(0, 20).map((click) => (
+                    <Tr key={click.id} _hover={{ bg: 'gray.750' }}>
+                      <Td>
+                        <Text fontSize="sm">
+                          {(() => {
+                            try {
+                              const date = new Date(click.ts);
+                              return isNaN(date.getTime()) ? 'Invalid date' : format(date, 'MMM dd, HH:mm');
+                            } catch {
+                              return 'Invalid date';
+                            }
+                          })()}
+                        </Text>
+                      </Td>
+                      <Td>
+                        <VStack spacing={0} align="start">
+                          {click.country && (
+                            <Text fontSize="sm" fontWeight="medium">
+                              {click.country}
+                            </Text>
+                          )}
+                          {click.region && (
+                            <Text fontSize="xs" color="gray.400">
+                              {click.region}
+                            </Text>
+                          )}
+                          {click.city && (
+                            <Text fontSize="xs" color="gray.400">
+                              {click.city}
+                            </Text>
+                          )}
+                          {!click.country && !click.region && !click.city && (
+                            <Text fontSize="sm" color="gray.400">
+                              Unknown
+                            </Text>
+                          )}
+                        </VStack>
+                      </Td>
+                      <Td>
+                        <Text fontFamily="mono" fontSize="sm">
+                          {click.ip}
+                        </Text>
+                      </Td>
+                      <Td maxW="150px">
+                        <Text fontSize="sm" isTruncated title={click.isp || 'Unknown'}>
+                          {click.isp || 'Unknown'}
+                        </Text>
+                      </Td>
+                      <Td maxW="150px">
+                        <Text fontSize="sm" isTruncated title={click.referer || 'Direct'}>
+                          {click.referer || 'Direct'}
+                        </Text>
+                      </Td>
+                    </Tr>
+                  ))}
             </Tbody>
           </Table>
         ) : (
           <Center h="200px">
-            <Text color="gray.400">No clicks in the last {dateRange} days</Text>
+            <Text color="gray.400">No clicks in the last 7 days</Text>
           </Center>
         )}
       </Box>

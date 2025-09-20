@@ -16,7 +16,7 @@
         "destination": "/index.html"
       },
       {
-        "source": "!**/*.*",
+        "source": "**",
         "function": "redirect"
       }
     ],

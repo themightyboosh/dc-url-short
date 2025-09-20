@@ -2,24 +2,25 @@ import * as admin from 'firebase-admin';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { 
-  LinkSchema, 
   CreateLinkSchema, 
-  UpdateLinkSchema, 
-  ClickSchema,
-  ApiResponse,
+  UpdateLinkSchema,
   PaginatedResponse,
   AuthenticatedRequest 
 } from '../types';
 import { 
   generateSlug, 
   isValidSlug, 
-  reverseDnsLookup, 
-  getClientIp, 
   sanitizeUrl,
   createApiResponse 
 } from '../utils';
 
-const db = admin.firestore();
+// Get Firestore instance
+const getDb = () => {
+  if (!admin.apps.length) {
+    admin.initializeApp();
+  }
+  return admin.firestore();
+};
 
 // Middleware to verify admin access
 export function requireAdmin(req: AuthenticatedRequest, res: Response, next: Function) {
@@ -33,8 +34,17 @@ export function requireAdmin(req: AuthenticatedRequest, res: Response, next: Fun
     return res.status(403).json(createApiResponse(false, null, 'Access restricted to monumental-i.com organization'));
   }
 
-  next();
+  return next();
 }
+
+// Reserved slugs that cannot be used
+const RESERVED_SLUGS = [
+  'admin', 'api', 'assets', 'static', 'test', 'debug', 'health', 'status',
+  'www', 'mail', 'ftp', 'blog', 'shop', 'store', 'support', 'help',
+  'about', 'contact', 'privacy', 'terms', 'login', 'signup', 'signin',
+  'dashboard', 'profile', 'settings', 'account', 'billing', 'pricing',
+  'docs', 'documentation', 'api-docs', 'swagger', 'openapi'
+];
 
 // POST /api/v1/links - Create link
 export async function createLink(req: AuthenticatedRequest, res: Response) {
@@ -44,17 +54,30 @@ export async function createLink(req: AuthenticatedRequest, res: Response) {
     // Generate slug if not provided
     let slug = validatedData.slug || generateSlug();
     
-    // Ensure slug is unique
-    let attempts = 0;
-    while (attempts < 10) {
-      const existing = await db.collection('links').doc(slug).get();
-      if (!existing.exists) break;
-      slug = generateSlug();
-      attempts++;
+    // Check if slug is reserved
+    if (RESERVED_SLUGS.includes(slug.toLowerCase())) {
+      return res.status(400).json(createApiResponse(false, null, 'Slug is reserved and cannot be used'));
     }
     
-    if (attempts >= 10) {
-      return res.status(500).json(createApiResponse(false, null, 'Unable to generate unique slug'));
+    // Check if slug already exists
+    const existing = await getDb().collection('links').doc(slug).get();
+    
+    if (existing.exists) {
+      // If slug exists, update the existing link with new URL
+      const existingData = existing.data();
+      const linkData = {
+        ...validatedData,
+        slug,
+        longUrl: sanitizeUrl(validatedData.longUrl),
+        createdAt: existingData?.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+        clickCount: existingData?.clickCount || 0,
+        lastClickedAt: existingData?.lastClickedAt || null,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      await getDb().collection('links').doc(slug).set(linkData, { merge: true });
+
+      return res.status(200).json(createApiResponse(true, linkData, undefined, 'Link updated successfully'));
     }
 
     const linkData = {
@@ -66,15 +89,15 @@ export async function createLink(req: AuthenticatedRequest, res: Response) {
       lastClickedAt: null
     };
 
-    await db.collection('links').doc(slug).set(linkData);
+    await getDb().collection('links').doc(slug).set(linkData);
 
-    res.status(201).json(createApiResponse(true, linkData, null, 'Link created successfully'));
+    return res.status(201).json(createApiResponse(true, linkData, undefined, 'Link created successfully'));
   } catch (error) {
     console.error('Error creating link:', error);
     if (error instanceof z.ZodError) {
       return res.status(400).json(createApiResponse(false, null, 'Invalid input data', error.errors[0].message));
     }
-    res.status(500).json(createApiResponse(false, null, 'Internal server error'));
+    return res.status(500).json(createApiResponse(false, null, 'Internal server error'));
   }
 }
 
@@ -85,7 +108,7 @@ export async function listLinks(req: AuthenticatedRequest, res: Response) {
     const offset = parseInt(req.query.offset as string) || 0;
     const search = req.query.search as string;
 
-    let query = db.collection('links').orderBy('createdAt', 'desc');
+    let query = getDb().collection('links').orderBy('createdAt', 'desc');
 
     if (search) {
       // Simple search by slug or longUrl containing search term
@@ -93,7 +116,7 @@ export async function listLinks(req: AuthenticatedRequest, res: Response) {
     }
 
     const snapshot = await query.limit(limit).offset(offset).get();
-    const totalSnapshot = await db.collection('links').get();
+    const totalSnapshot = await getDb().collection('links').get();
 
     const links = snapshot.docs.map(doc => ({
       id: doc.id,
@@ -111,10 +134,10 @@ export async function listLinks(req: AuthenticatedRequest, res: Response) {
       }
     };
 
-    res.json(response);
+    return res.json(response);
   } catch (error) {
     console.error('Error listing links:', error);
-    res.status(500).json(createApiResponse(false, null, 'Internal server error'));
+    return res.status(500).json(createApiResponse(false, null, 'Internal server error'));
   }
 }
 
@@ -127,16 +150,16 @@ export async function getLink(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json(createApiResponse(false, null, 'Invalid slug format'));
     }
 
-    const doc = await db.collection('links').doc(slug).get();
+    const doc = await getDb().collection('links').doc(slug).get();
     
     if (!doc.exists) {
       return res.status(404).json(createApiResponse(false, null, 'Link not found'));
     }
 
-    res.json(createApiResponse(true, { id: doc.id, ...doc.data() }));
+    return res.json(createApiResponse(true, { id: doc.id, ...doc.data() }));
   } catch (error) {
     console.error('Error getting link:', error);
-    res.status(500).json(createApiResponse(false, null, 'Internal server error'));
+    return res.status(500).json(createApiResponse(false, null, 'Internal server error'));
   }
 }
 
@@ -150,7 +173,7 @@ export async function updateLink(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json(createApiResponse(false, null, 'Invalid slug format'));
     }
 
-    const docRef = db.collection('links').doc(slug);
+    const docRef = getDb().collection('links').doc(slug);
     const doc = await docRef.get();
 
     if (!doc.exists) {
@@ -165,13 +188,13 @@ export async function updateLink(req: AuthenticatedRequest, res: Response) {
     await docRef.update(updateData);
 
     const updatedDoc = await docRef.get();
-    res.json(createApiResponse(true, { id: updatedDoc.id, ...updatedDoc.data() }, null, 'Link updated successfully'));
+    return res.json(createApiResponse(true, { id: updatedDoc.id, ...updatedDoc.data() }, undefined, 'Link updated successfully'));
   } catch (error) {
     console.error('Error updating link:', error);
     if (error instanceof z.ZodError) {
       return res.status(400).json(createApiResponse(false, null, 'Invalid input data', error.errors[0].message));
     }
-    res.status(500).json(createApiResponse(false, null, 'Internal server error'));
+    return res.status(500).json(createApiResponse(false, null, 'Internal server error'));
   }
 }
 
@@ -184,7 +207,7 @@ export async function deleteLink(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json(createApiResponse(false, null, 'Invalid slug format'));
     }
 
-    const docRef = db.collection('links').doc(slug);
+    const docRef = getDb().collection('links').doc(slug);
     const doc = await docRef.get();
 
     if (!doc.exists) {
@@ -193,10 +216,10 @@ export async function deleteLink(req: AuthenticatedRequest, res: Response) {
 
     await docRef.delete();
 
-    res.json(createApiResponse(true, null, null, 'Link deleted successfully'));
+    return res.json(createApiResponse(true, undefined, undefined, 'Link deleted successfully'));
   } catch (error) {
     console.error('Error deleting link:', error);
-    res.status(500).json(createApiResponse(false, null, 'Internal server error'));
+    return res.status(500).json(createApiResponse(false, null, 'Internal server error'));
   }
 }
 
@@ -213,7 +236,7 @@ export async function getClickLogs(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json(createApiResponse(false, null, 'Invalid slug format'));
     }
 
-    let query = db.collection('clicks')
+    let query = getDb().collection('clicks')
       .where('slug', '==', slug)
       .orderBy('ts', 'desc');
 
@@ -230,18 +253,18 @@ export async function getClickLogs(req: AuthenticatedRequest, res: Response) {
       ...doc.data()
     }));
 
-    res.json(createApiResponse(true, clicks));
+    return res.json(createApiResponse(true, clicks));
   } catch (error) {
     console.error('Error getting click logs:', error);
-    res.status(500).json(createApiResponse(false, null, 'Internal server error'));
+    return res.status(500).json(createApiResponse(false, null, 'Internal server error'));
   }
 }
 
 // GET /api/v1/health - Health check
 export async function healthCheck(req: Request, res: Response) {
-  res.json(createApiResponse(true, { 
-    status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    version: '1.0.0'
-  }));
+    return res.json(createApiResponse(true, { 
+      status: 'healthy', 
+      timestamp: new Date().toISOString(),
+      version: '1.0.0'
+    }));
 }

@@ -1,6 +1,7 @@
 import axios from 'axios'
+import { auth } from './firebase'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/moni-url-short/us-central1/api'
+const API_BASE_URL = 'https://us-central1-moni-url-short.cloudfunctions.net/api'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -37,6 +38,7 @@ export interface Link {
   lastClickedAt: string | null
   notes?: string
   tags?: string[]
+  emailAlerts?: boolean
 }
 
 export interface Click {
@@ -48,6 +50,10 @@ export interface Click {
   referer: string | null
   hostname: string | null
   country: string | null
+  region: string | null
+  city: string | null
+  timezone: string | null
+  isp: string | null
 }
 
 export interface CreateLinkData {
@@ -57,6 +63,7 @@ export interface CreateLinkData {
   disabled?: boolean
   notes?: string
   tags?: string[]
+  emailAlerts?: boolean
 }
 
 export interface UpdateLinkData {
@@ -64,6 +71,7 @@ export interface UpdateLinkData {
   disabled?: boolean
   notes?: string
   tags?: string[]
+  emailAlerts?: boolean
 }
 
 export const linksApi = {

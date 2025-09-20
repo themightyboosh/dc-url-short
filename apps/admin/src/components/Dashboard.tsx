@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from 'react-query'
+import { useQuery } from 'react-query'
 import {
   Box,
   Button,
@@ -26,11 +26,10 @@ import {
   Stat,
   StatLabel,
   StatNumber,
-  StatHelpText,
   SimpleGrid
 } from '@chakra-ui/react'
 import { SearchIcon, PlusIcon, CopyIcon, ExternalLinkIcon, BarChart3Icon } from 'lucide-react'
-import { linksApi, Link } from '../lib/api'
+import { linksApi } from '../lib/api'
 import CreateLinkModal from './CreateLinkModal'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -39,7 +38,6 @@ export default function Dashboard() {
   const [page, setPage] = useState(0)
   const { isOpen, onOpen, onClose } = useDisclosure()
   const toast = useToast()
-  const queryClient = useQueryClient()
 
   const { data: linksData, isLoading, error } = useQuery(
     ['links', page, searchTerm],
@@ -53,26 +51,6 @@ export default function Dashboard() {
     }
   )
 
-  const deleteMutation = useMutation(linksApi.delete, {
-    onSuccess: () => {
-      queryClient.invalidateQueries('links')
-      toast({
-        title: 'Link deleted successfully',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      })
-    },
-    onError: () => {
-      toast({
-        title: 'Failed to delete link',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      })
-    }
-  })
-
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
     toast({
@@ -84,7 +62,7 @@ export default function Dashboard() {
   }
 
   const getShortUrl = (slug: string) => {
-    return `https://go.monumental-i.com/s/${slug}`
+    return `https://go.monumental-i.com/${slug}`
   }
 
   if (isLoading) {
@@ -128,7 +106,7 @@ export default function Dashboard() {
 
       {/* Header */}
       <Flex justifyContent="space-between" alignItems="center">
-        <Heading size="lg">Links Management</Heading>
+        <Heading size="lg">Monumental URL Shortener</Heading>
         <Button
           leftIcon={<PlusIcon size={16} />}
           colorScheme="brand"
@@ -168,6 +146,7 @@ export default function Dashboard() {
               <Th color="gray.300">Long URL</Th>
               <Th color="gray.300">Clicks</Th>
               <Th color="gray.300">Status</Th>
+              <Th color="gray.300">Email Alerts</Th>
               <Th color="gray.300">Created</Th>
               <Th color="gray.300">Actions</Th>
             </Tr>
@@ -202,8 +181,23 @@ export default function Dashboard() {
                   </Badge>
                 </Td>
                 <Td>
+                  <Badge
+                    colorScheme={link.emailAlerts ? 'blue' : 'gray'}
+                    variant="subtle"
+                  >
+                    {link.emailAlerts ? 'Enabled' : 'Disabled'}
+                  </Badge>
+                </Td>
+                <Td>
                   <Text fontSize="sm" color="gray.400">
-                    {formatDistanceToNow(new Date(link.createdAt), { addSuffix: true })}
+                    {link.createdAt ? (() => {
+                      try {
+                        const date = new Date(link.createdAt);
+                        return isNaN(date.getTime()) ? 'Invalid date' : formatDistanceToNow(date, { addSuffix: true });
+                      } catch {
+                        return 'Invalid date';
+                      }
+                    })() : 'No date'}
                   </Text>
                 </Td>
                 <Td>

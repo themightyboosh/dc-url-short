@@ -7,13 +7,11 @@ import {
   Text,
   Container,
   useToast,
-  Spinner,
   Alert,
   AlertIcon,
   AlertTitle,
   AlertDescription
 } from '@chakra-ui/react'
-import { GoogleIcon } from '@chakra-ui/icons'
 import { useAuth } from '../hooks/useAuth'
 
 export default function LoginPage() {
@@ -80,7 +78,6 @@ export default function LoginPage() {
             </Text>
             
             <Button
-              leftIcon={<GoogleIcon />}
               colorScheme="brand"
               size="lg"
               w="full"

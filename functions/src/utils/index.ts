@@ -1,5 +1,5 @@
-import { nanoid } from 'nanoid';
-import { dns } from 'dns/promises';
+import { promises as dns } from 'dns';
+import axios from 'axios';
 
 export function generateSlug(length: number = 6): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -46,6 +46,70 @@ export function sanitizeUrl(url: string): string {
   } catch (error) {
     throw new Error('Invalid URL format');
   }
+}
+
+export async function getGeolocation(ip: string): Promise<{
+  country: string | null;
+  region: string | null;
+  city: string | null;
+  timezone: string | null;
+  isp: string | null;
+}> {
+  try {
+    // Skip geolocation for local/private IPs
+    if (isPrivateIP(ip)) {
+      return {
+        country: null,
+        region: null,
+        city: null,
+        timezone: null,
+        isp: null
+      };
+    }
+
+    // Use ipapi.co (free tier: 1000 requests/day)
+    const response = await axios.get(`https://ipapi.co/${ip}/json/`, {
+      timeout: 5000,
+      headers: {
+        'User-Agent': 'Monumental-URL-Shortener/1.0'
+      }
+    });
+
+    const data = response.data;
+    
+    return {
+      country: data.country_name || null,
+      region: data.region || null,
+      city: data.city || null,
+      timezone: data.timezone || null,
+      isp: data.org || null
+    };
+  } catch (error) {
+    console.warn(`Geolocation lookup failed for IP ${ip}:`, error);
+    return {
+      country: null,
+      region: null,
+      city: null,
+      timezone: null,
+      isp: null
+    };
+  }
+}
+
+function isPrivateIP(ip: string): boolean {
+  const privateRanges = [
+    /^10\./,                    // 10.0.0.0/8
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./, // 172.16.0.0/12
+    /^192\.168\./,              // 192.168.0.0/16
+    /^127\./,                   // 127.0.0.0/8 (localhost)
+    /^169\.254\./,              // 169.254.0.0/16 (link-local)
+    /^::1$/,                    // IPv6 localhost
+    /^fe80:/,                   // IPv6 link-local
+    /^fc00:/,                   // IPv6 unique local
+    /^fd00:/                    // IPv6 unique local
+  ];
+  
+  return privateRanges.some(range => range.test(ip));
 }
 
 export function createApiResponse<T>(

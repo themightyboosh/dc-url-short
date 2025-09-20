@@ -27,7 +27,8 @@ import {
   StatLabel,
   StatNumber,
   SimpleGrid,
-  Checkbox
+  Checkbox,
+  Switch
 } from '@chakra-ui/react'
 import { SearchIcon, PlusIcon, CopyIcon, ExternalLinkIcon, BarChart3Icon } from 'lucide-react'
 import { linksApi, settingsApi } from '../lib/api'
@@ -83,6 +84,30 @@ export default function Dashboard() {
           description: error.response?.data?.error || error.message || 'Please try again',
           status: 'error',
           duration: 5000,
+          isClosable: true,
+        })
+      }
+    }
+  )
+
+  const updateLinkMutation = useMutation(
+    ({ slug, data }: { slug: string; data: any }) => linksApi.update(slug, data),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('links')
+        toast({
+          title: 'Link updated successfully',
+          status: 'success',
+          duration: 2000,
+          isClosable: true,
+        })
+      },
+      onError: (error: any) => {
+        toast({
+          title: 'Failed to update link',
+          description: error.response?.data?.error || 'Please try again',
+          status: 'error',
+          duration: 3000,
           isClosable: true,
         })
       }
@@ -219,16 +244,19 @@ export default function Dashboard() {
                     {link.slug}
                   </Text>
                 </Td>
-                <Td maxW="300px">
-                  <Text
-                    fontSize="sm"
-                    isTruncated
-                    title={link.longUrl}
-                    color="blue.400"
-                  >
-                    {link.longUrl}
-                  </Text>
-                </Td>
+                    <Td maxW="300px">
+                      <Text
+                        fontSize="sm"
+                        isTruncated
+                        title={link.longUrl}
+                        color="blue.400"
+                        cursor="pointer"
+                        _hover={{ textDecoration: "underline" }}
+                        onClick={() => window.open(link.longUrl, '_blank')}
+                      >
+                        {link.longUrl}
+                      </Text>
+                    </Td>
                 <Td>
                   <Text fontWeight="medium">{link.clickCount}</Text>
                 </Td>
@@ -241,12 +269,21 @@ export default function Dashboard() {
                   </Badge>
                 </Td>
                 <Td>
-                  <Badge
-                    colorScheme={link.emailAlerts ? 'blue' : 'gray'}
-                    variant="subtle"
-                  >
-                    {link.emailAlerts ? 'Enabled' : 'Disabled'}
-                  </Badge>
+                  <HStack spacing={2}>
+                    <Switch
+                      isChecked={link.emailAlerts || false}
+                      onChange={(e) => updateLinkMutation.mutate({ 
+                        slug: link.slug, 
+                        data: { emailAlerts: e.target.checked } 
+                      })}
+                      colorScheme="brand"
+                      size="sm"
+                      isDisabled={updateLinkMutation.isLoading}
+                    />
+                    <Text fontSize="xs" color="gray.400">
+                      {link.emailAlerts ? 'On' : 'Off'}
+                    </Text>
+                  </HStack>
                 </Td>
                 <Td>
                   <Text fontSize="sm" color="gray.400">

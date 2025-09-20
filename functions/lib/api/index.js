@@ -43,6 +43,7 @@ exports.getClickLogs = getClickLogs;
 exports.getSettings = getSettings;
 exports.updateSettings = updateSettings;
 exports.healthCheck = healthCheck;
+exports.clearClickLogs = clearClickLogs;
 exports.getDocumentation = getDocumentation;
 const admin = __importStar(require("firebase-admin"));
 const zod_1 = require("zod");
@@ -320,6 +321,40 @@ async function healthCheck(req, res) {
         }));
     }
 }
+// DELETE /api/v1/links/:slug/clicks - Clear all click logs for a link
+async function clearClickLogs(req, res) {
+    try {
+        const { slug } = req.params;
+        if (!(0, utils_1.isValidSlug)(slug)) {
+            return res.status(400).json((0, utils_1.createApiResponse)(false, null, 'Invalid slug format'));
+        }
+        // Get all clicks for this slug
+        const clicksSnapshot = await getDb().collection('clicks')
+            .where('slug', '==', slug)
+            .get();
+        if (clicksSnapshot.empty) {
+            return res.json((0, utils_1.createApiResponse)(true, { deletedCount: 0 }, undefined, 'No clicks found to delete'));
+        }
+        // Delete all click documents
+        const batch = getDb().batch();
+        clicksSnapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+        // Reset click count on the link
+        await getDb().collection('links').doc(slug).update({
+            clickCount: 0,
+            lastClickedAt: null
+        });
+        return res.json((0, utils_1.createApiResponse)(true, {
+            deletedCount: clicksSnapshot.size
+        }, undefined, `Cleared ${clicksSnapshot.size} click logs`));
+    }
+    catch (error) {
+        console.error('Error clearing click logs:', error);
+        return res.status(500).json((0, utils_1.createApiResponse)(false, null, 'Internal server error'));
+    }
+}
 // GET /api/v1/docs - API Documentation
 async function getDocumentation(req, res) {
     return res.json((0, utils_1.createApiResponse)(true, {
@@ -344,7 +379,8 @@ async function getDocumentation(req, res) {
                 get: 'GET /api/v1/links/{slug}',
                 update: 'PATCH /api/v1/links/{slug}',
                 delete: 'DELETE /api/v1/links/{slug}',
-                clicks: 'GET /api/v1/links/{slug}/clicks'
+                clicks: 'GET /api/v1/links/{slug}/clicks',
+                clearClicks: 'DELETE /api/v1/links/{slug}/clicks'
             },
             settings: {
                 get: 'GET /api/v1/settings',

@@ -130,6 +130,16 @@ export const linksApi = {
   }): Promise<Click[]> => {
     const response = await api.get(`/api/v1/links/${slug}/clicks`, { params })
     return response.data.data
+  },
+
+  clearClicks: async (slug: string): Promise<{ deletedCount: number }> => {
+    const response = await api.delete(`/api/v1/links/${slug}/clicks`)
+    return response.data.data
+  },
+
+  healthCheck: async (): Promise<{ status: string }> => {
+    const response = await api.get('/api/v1/health')
+    return response.data.data
   }
 }
 

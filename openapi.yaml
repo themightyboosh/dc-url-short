@@ -101,6 +101,10 @@ paths:
                     type: string
                   description: Optional tags for categorization
                   example: ["marketing", "campaign"]
+                emailAlerts:
+                  type: boolean
+                  description: Enable Google Chat alerts for this link
+                  default: false
       responses:
         '201':
           description: Link created successfully
@@ -227,6 +231,9 @@ paths:
                   items:
                     type: string
                   description: Updated tags
+                emailAlerts:
+                  type: boolean
+                  description: Enable/disable Google Chat alerts
       responses:
         '200':
           description: Link updated successfully
@@ -324,6 +331,38 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Click'
+
+    delete:
+      summary: Clear all click logs for a link
+      description: Deletes all click logs for a specific link and resets click count. Requires authentication with @monumental-i.com email.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The link slug
+          schema:
+            type: string
+            example: my-custom-slug
+      responses:
+        '200':
+          description: Click logs cleared successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      deletedCount:
+                        type: integer
+                        example: 15
+                  message:
+                    type: string
+                    example: Cleared 15 click logs
 
   /api/v1/settings:
     get:
@@ -466,6 +505,9 @@ paths:
                               clicks:
                                 type: string
                                 example: GET /api/v1/links/{slug}/clicks
+                              clearClicks:
+                                type: string
+                                example: DELETE /api/v1/links/{slug}/clicks
                           settings:
                             type: object
                             properties:
@@ -491,7 +533,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Firebase Authentication JWT token
+      description: Firebase Authentication token
 
   schemas:
     Link:
@@ -499,123 +541,107 @@ components:
       properties:
         id:
           type: string
-          description: Document ID
           example: my-custom-slug
         slug:
           type: string
-          description: The short URL slug
           example: my-custom-slug
         longUrl:
           type: string
           format: uri
-          description: The original long URL
           example: https://example.com/very-long-url
         createdAt:
           type: string
           format: date-time
-          description: When the link was created
+          example: "2025-09-20T02:45:23.123Z"
         createdBy:
           type: string
           format: email
-          description: Email of the user who created the link
           example: user@monumental-i.com
         disabled:
           type: boolean
-          description: Whether the link is disabled
-          default: false
+          example: false
         clickCount:
           type: integer
-          description: Total number of clicks
-          minimum: 0
+          example: 42
         lastClickedAt:
           type: string
           format: date-time
           nullable: true
-          description: When the link was last clicked
+          example: "2025-09-20T02:45:23.123Z"
         notes:
           type: string
           nullable: true
-          description: Optional notes about the link
+          example: Marketing campaign link
         tags:
           type: array
           items:
             type: string
           nullable: true
-          description: Optional tags for categorization
+          example: ["marketing", "campaign"]
+        emailAlerts:
+          type: boolean
+          example: true
 
     Click:
       type: object
       properties:
         id:
           type: string
-          description: Click document ID
+          example: click-123
         slug:
           type: string
-          description: The link slug that was clicked
+          example: my-custom-slug
         ts:
           type: string
           format: date-time
-          description: When the click occurred
+          example: "2025-09-20T02:45:23.123Z"
         ip:
           type: string
-          description: IP address of the clicker
-          example: 192.168.1.1
+          example: 192.168.1.100
         userAgent:
           type: string
-          description: User agent string of the clicker
+          example: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
         referer:
           type: string
           nullable: true
-          description: Referer URL (if available)
+          example: https://example.com/page
         hostname:
           type: string
           nullable: true
-          description: Reverse DNS hostname (if available)
+          example: example.com
         country:
           type: string
           nullable: true
-          description: Country code (reserved for future use)
+          example: United States
+        region:
+          type: string
+          nullable: true
+          example: Missouri
+        city:
+          type: string
+          nullable: true
+          example: Kansas City
+        timezone:
+          type: string
+          nullable: true
+          example: America/Chicago
+        isp:
+          type: string
+          nullable: true
+          example: Comcast Cable
 
     Pagination:
       type: object
       properties:
-        limit:
-          type: integer
-          description: Number of items per page
-        offset:
-          type: integer
-          description: Number of items skipped
         total:
           type: integer
-          description: Total number of items
+          example: 150
+        limit:
+          type: integer
+          example: 20
+        offset:
+          type: integer
+          example: 0
         hasMore:
           type: boolean
-          description: Whether there are more items available
-
-  examples:
-    CreateLinkRequest:
-      summary: Example create link request
-      value:
-        slug: marketing-campaign-2024
-        longUrl: https://monumental-i.com/campaigns/holiday-sale
-        createdBy: marketing@monumental-i.com
-        notes: Holiday marketing campaign link
-        tags: ["marketing", "holiday", "2024"]
-        disabled: false
-
-    CreateLinkResponse:
-      summary: Example create link response
-      value:
-        success: true
-        data:
-          id: marketing-campaign-2024
-          slug: marketing-campaign-2024
-          longUrl: https://monumental-i.com/campaigns/holiday-sale
-          createdAt: "2024-01-15T10:30:00Z"
-          createdBy: marketing@monumental-i.com
-          disabled: false
-          clickCount: 0
-          lastClickedAt: null
-          notes: Holiday marketing campaign link
-          tags: ["marketing", "holiday", "2024"]
-        message: Link created successfully
+          example: true

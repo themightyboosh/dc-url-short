@@ -26,7 +26,7 @@ import {
   IconButton,
   Tooltip
 } from '@chakra-ui/react'
-import { ArrowLeftIcon, CopyIcon, ExternalLinkIcon } from 'lucide-react'
+import { ArrowLeftIcon, CopyIcon, ExternalLinkIcon, TrashIcon } from 'lucide-react'
 import { linksApi, UpdateLinkData } from '../lib/api'
 import { formatDistanceToNow, format } from 'date-fns'
 
@@ -71,6 +71,31 @@ export default function LinkDetail() {
       onError: () => {
         toast({
           title: 'Failed to update link',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        })
+      }
+    }
+  )
+
+  const clearClicksMutation = useMutation(
+    () => linksApi.clearClicks(slug!),
+    {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries(['link', slug])
+        queryClient.invalidateQueries(['clicks', slug])
+        toast({
+          title: 'Click logs cleared',
+          description: `Deleted ${data.deletedCount} click records`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        })
+      },
+      onError: () => {
+        toast({
+          title: 'Failed to clear click logs',
           status: 'error',
           duration: 3000,
           isClosable: true,
@@ -154,7 +179,7 @@ export default function LinkDetail() {
         <VStack spacing={4} align="stretch">
           <Box>
             <Text fontSize="sm" color="gray.400" mb={1}>Long URL</Text>
-            <Text fontSize="sm" color="blue.400" wordBreak="break-all">
+            <Text fontSize="sm" color="blue.400" wordBreak="break-all" cursor="pointer" _hover={{ textDecoration: "underline" }} onClick={() => window.open(link.longUrl, '_blank')}>
               {link.longUrl}
             </Text>
           </Box>
@@ -247,7 +272,26 @@ export default function LinkDetail() {
       {/* Recent Clicks */}
       <Box bg="gray.800" borderRadius="lg" border="1px" borderColor="gray.700" overflow="hidden">
         <Box p={4} borderBottom="1px" borderColor="gray.700">
-          <Heading size="md">Recent Clicks</Heading>
+          <HStack justifyContent="space-between">
+            <Heading size="md">Recent Clicks</Heading>
+            {clicks && clicks.length > 0 && (
+              <Tooltip label="Clear all click logs">
+                <IconButton
+                  aria-label="Clear click logs"
+                  icon={<TrashIcon size={16} />}
+                  onClick={() => {
+                    if (window.confirm(`Are you sure you want to clear all ${clicks.length} click logs? This action cannot be undone.`)) {
+                      clearClicksMutation.mutate();
+                    }
+                  }}
+                  variant="ghost"
+                  colorScheme="red"
+                  size="sm"
+                  isLoading={clearClicksMutation.isLoading}
+                />
+              </Tooltip>
+            )}
+          </HStack>
         </Box>
         
         {clicksLoading ? (

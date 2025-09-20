@@ -60,7 +60,7 @@ export default function Layout({ children }: LayoutProps) {
         <Flex justifyContent="space-between" alignItems="center">
           <HStack spacing={4}>
             <Heading size="lg" color="brand.500">
-              Moni URL Shortener
+              Monumental URL Shortener
             </Heading>
             <Text fontSize="sm" color="gray.500">
               Admin Dashboard

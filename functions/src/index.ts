@@ -9,6 +9,7 @@ import {
   updateLink, 
   deleteLink, 
   getClickLogs, 
+  clearClickLogs,
   getSettings,
   updateSettings,
   healthCheck,
@@ -18,7 +19,8 @@ import {
 import { 
   reverseDnsLookup, 
   getClientIp,
-  getGeolocation
+  getGeolocation,
+  sendGoogleChatAlert
 } from './utils';
 
 // Initialize Firebase Admin
@@ -66,6 +68,7 @@ app.get('/api/v1/links/:slug', requireAdmin, getLink);
 app.patch('/api/v1/links/:slug', requireAdmin, updateLink);
 app.delete('/api/v1/links/:slug', requireAdmin, deleteLink);
 app.get('/api/v1/links/:slug/clicks', requireAdmin, getClickLogs);
+app.delete('/api/v1/links/:slug/clicks', requireAdmin, clearClickLogs);
 app.get('/api/v1/settings', requireAdmin, getSettings);
 app.patch('/api/v1/settings', requireAdmin, updateSettings);
 app.get('/api/v1/health', healthCheck);
@@ -131,11 +134,11 @@ export const redirect = functions.https.onRequest(async (req, res) => {
       return;
     }
 
-    // Fire-and-forget click logging with error isolation
-    logClick(slug, req).catch(error => {
-      console.error('Click logging failed (non-critical):', error);
-      // Don't fail the redirect for logging errors
-    });
+        // Fire-and-forget click logging with error isolation
+        logClick(slug, linkData, req).catch(error => {
+          console.error('Click logging failed (non-critical):', error);
+          // Don't fail the redirect for logging errors
+        });
 
     // Update click count with error isolation
     db.collection('links').doc(slug).update({
@@ -167,7 +170,7 @@ export const redirect = functions.https.onRequest(async (req, res) => {
 });
 
 // Async function to log clicks
-async function logClick(slug: string, req: any) {
+async function logClick(slug: string, linkData: any, req: any) {
   try {
     const ip = getClientIp(req);
     const userAgent = req.headers['user-agent'] || '';
@@ -194,6 +197,20 @@ async function logClick(slug: string, req: any) {
     };
 
     await admin.firestore().collection('clicks').add(clickData);
+
+    // Send Google Chat alert if enabled for this link
+    if (linkData?.emailAlerts) {
+      const timestamp = new Date().toISOString();
+      await sendGoogleChatAlert(slug, linkData.longUrl, {
+        ip,
+        country: geolocation.country,
+        region: geolocation.region,
+        city: geolocation.city,
+        userAgent,
+        referer,
+        timestamp
+      }, linkData.createdBy);
+    }
   } catch (error) {
     console.error('Click logging error:', error);
   }

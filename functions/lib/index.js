@@ -83,6 +83,7 @@ app.get('/api/v1/links/:slug', api_1.requireAdmin, api_1.getLink);
 app.patch('/api/v1/links/:slug', api_1.requireAdmin, api_1.updateLink);
 app.delete('/api/v1/links/:slug', api_1.requireAdmin, api_1.deleteLink);
 app.get('/api/v1/links/:slug/clicks', api_1.requireAdmin, api_1.getClickLogs);
+app.delete('/api/v1/links/:slug/clicks', api_1.requireAdmin, api_1.clearClickLogs);
 app.get('/api/v1/settings', api_1.requireAdmin, api_1.getSettings);
 app.patch('/api/v1/settings', api_1.requireAdmin, api_1.updateSettings);
 app.get('/api/v1/health', api_1.healthCheck);
@@ -133,7 +134,7 @@ exports.redirect = functions.https.onRequest(async (req, res) => {
             return;
         }
         // Fire-and-forget click logging with error isolation
-        logClick(slug, req).catch(error => {
+        logClick(slug, linkData, req).catch(error => {
             console.error('Click logging failed (non-critical):', error);
             // Don't fail the redirect for logging errors
         });
@@ -166,7 +167,7 @@ exports.redirect = functions.https.onRequest(async (req, res) => {
     }
 });
 // Async function to log clicks
-async function logClick(slug, req) {
+async function logClick(slug, linkData, req) {
     try {
         const ip = (0, utils_1.getClientIp)(req);
         const userAgent = req.headers['user-agent'] || '';
@@ -190,6 +191,19 @@ async function logClick(slug, req) {
             isp: geolocation.isp
         };
         await admin.firestore().collection('clicks').add(clickData);
+        // Send Google Chat alert if enabled for this link
+        if (linkData === null || linkData === void 0 ? void 0 : linkData.emailAlerts) {
+            const timestamp = new Date().toISOString();
+            await (0, utils_1.sendGoogleChatAlert)(slug, linkData.longUrl, {
+                ip,
+                country: geolocation.country,
+                region: geolocation.region,
+                city: geolocation.city,
+                userAgent,
+                referer,
+                timestamp
+            }, linkData.createdBy);
+        }
     }
     catch (error) {
         console.error('Click logging error:', error);

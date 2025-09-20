@@ -1,5 +1,7 @@
 import { promises as dns } from 'dns';
 import axios from 'axios';
+import nodemailer from 'nodemailer';
+import * as functions from 'firebase-functions';
 import { Timestamp } from 'firebase-admin/firestore';
 
 export function generateSlug(length: number = 6): string {
@@ -158,4 +160,169 @@ export function convertTimestamps(obj: any): any {
   }
   
   return obj;
+}
+
+// Google Chat notification functions
+export async function sendGoogleChatAlert(
+  slug: string,
+  longUrl: string,
+  clickData: {
+    ip: string;
+    country: string | null;
+    region: string | null;
+    city: string | null;
+    userAgent: string;
+    referer: string | null;
+    timestamp: string;
+  },
+  createdBy: string
+): Promise<void> {
+  try {
+    // Use Google Chat webhook URL from Firebase config
+    const webhookUrl = functions.config().google_chat?.webhook_url;
+    
+    if (!webhookUrl) {
+      console.log('Google Chat webhook not configured, skipping notification');
+      return;
+    }
+
+    const location = [clickData.city, clickData.region, clickData.country]
+      .filter(Boolean)
+      .join(', ') || 'Unknown';
+
+    const message = {
+      text: `🔗 *Link Click Alert*`,
+      cards: [{
+        header: {
+          title: `Link Click: ${slug}`,
+          subtitle: `Clicked by someone in ${location}`
+        },
+        sections: [{
+          widgets: [
+            {
+              textParagraph: {
+                text: `<b>Short URL:</b> <a href="https://go.monumental-i.com/${slug}">https://go.monumental-i.com/${slug}</a>`
+              }
+            },
+            {
+              textParagraph: {
+                text: `<b>Destination:</b> <a href="${longUrl}">${longUrl}</a>`
+              }
+            },
+            {
+              textParagraph: {
+                text: `<b>Time:</b> ${clickData.timestamp}`
+              }
+            },
+            {
+              textParagraph: {
+                text: `<b>Location:</b> ${location}`
+              }
+            },
+            {
+              textParagraph: {
+                text: `<b>IP:</b> ${clickData.ip}`
+              }
+            },
+            {
+              textParagraph: {
+                text: `<b>Referer:</b> ${clickData.referer || 'Direct'}`
+              }
+            },
+            {
+              textParagraph: {
+                text: `<b>Created by:</b> ${createdBy}`
+              }
+            }
+          ]
+        }]
+      }]
+    };
+
+    await axios.post(webhookUrl, message, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
+    });
+
+    console.log(`Google Chat alert sent for link: ${slug} to space: ${webhookUrl}`);
+  } catch (error) {
+    console.error('Failed to send Google Chat alert:', error);
+    // Fallback to email if Chat fails
+    await sendEmailAlert(slug, longUrl, clickData, createdBy);
+  }
+}
+
+// Email fallback notification function
+export async function sendEmailAlert(
+  slug: string,
+  longUrl: string,
+  clickData: {
+    ip: string;
+    country: string | null;
+    region: string | null;
+    city: string | null;
+    userAgent: string;
+    referer: string | null;
+    timestamp: string;
+  },
+  createdBy: string
+): Promise<void> {
+  try {
+    // Send to the user who created the link, fallback to daniel@monumental-i.com
+    const recipientEmail = createdBy || 'daniel@monumental-i.com';
+    
+    // Create email transporter (using Gmail SMTP)
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER || 'daniel@monumental-i.com',
+        pass: process.env.EMAIL_PASS || process.env.GMAIL_APP_PASSWORD
+      }
+    });
+
+    const location = [clickData.city, clickData.region, clickData.country]
+      .filter(Boolean)
+      .join(', ') || 'Unknown';
+
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #0ea5e9;">🔗 Link Click Alert</h2>
+        <p>A short link has been clicked:</p>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0;">Link Details</h3>
+          <p><strong>Short URL:</strong> <a href="https://go.monumental-i.com/${slug}">https://go.monumental-i.com/${slug}</a></p>
+          <p><strong>Destination:</strong> <a href="${longUrl}">${longUrl}</a></p>
+          <p><strong>Created by:</strong> ${createdBy}</p>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0;">Click Information</h3>
+          <p><strong>Time:</strong> ${clickData.timestamp}</p>
+          <p><strong>Location:</strong> ${location}</p>
+          <p><strong>IP Address:</strong> ${clickData.ip}</p>
+          <p><strong>Referer:</strong> ${clickData.referer || 'Direct'}</p>
+        </div>
+        
+        <p style="color: #666; font-size: 14px;">
+          This alert was sent because email notifications are enabled for this link.
+        </p>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'daniel@monumental-i.com',
+      to: recipientEmail,
+      subject: `🔗 Link Click: ${slug} - ${location}`,
+      html: emailHtml
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Email alert sent to ${recipientEmail} for link: ${slug}`);
+  } catch (error) {
+    console.error('Failed to send email alert:', error);
+    // Don't throw error - email failure shouldn't break the redirect
+  }
 }

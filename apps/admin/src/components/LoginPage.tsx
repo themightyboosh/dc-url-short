@@ -47,7 +47,7 @@ export default function LoginPage() {
       <VStack spacing={8} py={20}>
         <Box textAlign="center">
           <Heading size="2xl" color="brand.500" mb={4}>
-            Moni URL Shortener
+            Monumental URL Shortener
           </Heading>
           <Text fontSize="lg" color="gray.400">
             Admin Dashboard

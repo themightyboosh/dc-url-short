@@ -359,6 +359,47 @@ export async function healthCheck(req: Request, res: Response) {
   }
 }
 
+// DELETE /api/v1/links/:slug/clicks - Clear all click logs for a link
+export async function clearClickLogs(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { slug } = req.params;
+
+    if (!isValidSlug(slug)) {
+      return res.status(400).json(createApiResponse(false, null, 'Invalid slug format'));
+    }
+
+    // Get all clicks for this slug
+    const clicksSnapshot = await getDb().collection('clicks')
+      .where('slug', '==', slug)
+      .get();
+
+    if (clicksSnapshot.empty) {
+      return res.json(createApiResponse(true, { deletedCount: 0 }, undefined, 'No clicks found to delete'));
+    }
+
+    // Delete all click documents
+    const batch = getDb().batch();
+    clicksSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+
+    await batch.commit();
+
+    // Reset click count on the link
+    await getDb().collection('links').doc(slug).update({
+      clickCount: 0,
+      lastClickedAt: null
+    });
+
+    return res.json(createApiResponse(true, { 
+      deletedCount: clicksSnapshot.size 
+    }, undefined, `Cleared ${clicksSnapshot.size} click logs`));
+  } catch (error) {
+    console.error('Error clearing click logs:', error);
+    return res.status(500).json(createApiResponse(false, null, 'Internal server error'));
+  }
+}
+
 // GET /api/v1/docs - API Documentation
 export async function getDocumentation(req: Request, res: Response) {
   return res.json(createApiResponse(true, {
@@ -383,7 +424,8 @@ export async function getDocumentation(req: Request, res: Response) {
         get: 'GET /api/v1/links/{slug}',
         update: 'PATCH /api/v1/links/{slug}',
         delete: 'DELETE /api/v1/links/{slug}',
-        clicks: 'GET /api/v1/links/{slug}/clicks'
+        clicks: 'GET /api/v1/links/{slug}/clicks',
+        clearClicks: 'DELETE /api/v1/links/{slug}/clicks'
       },
       settings: {
         get: 'GET /api/v1/settings',

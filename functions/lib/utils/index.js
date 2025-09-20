@@ -4,14 +4,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateSlug = generateSlug;
+exports.toKebabCase = toKebabCase;
 exports.isValidSlug = isValidSlug;
 exports.reverseDnsLookup = reverseDnsLookup;
 exports.getClientIp = getClientIp;
 exports.sanitizeUrl = sanitizeUrl;
 exports.getGeolocation = getGeolocation;
 exports.createApiResponse = createApiResponse;
+exports.convertTimestamps = convertTimestamps;
 const dns_1 = require("dns");
 const axios_1 = __importDefault(require("axios"));
+const firestore_1 = require("firebase-admin/firestore");
 function generateSlug(length = 6) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
@@ -20,8 +23,16 @@ function generateSlug(length = 6) {
     }
     return result;
 }
+function toKebabCase(text) {
+    return text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+        .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+}
 function isValidSlug(slug) {
-    return /^[a-zA-Z0-9_-]+$/.test(slug) && slug.length >= 1 && slug.length <= 50;
+    return /^[a-z0-9-]+$/.test(slug) && slug.length >= 1 && slug.length <= 50;
 }
 async function reverseDnsLookup(ip) {
     try {
@@ -117,5 +128,25 @@ function createApiResponse(success, data, error, message) {
     if (message)
         response.message = message;
     return response;
+}
+// Convert Firestore timestamps to JavaScript dates for API responses
+function convertTimestamps(obj) {
+    if (obj === null || obj === undefined) {
+        return obj;
+    }
+    if (obj instanceof firestore_1.Timestamp) {
+        return obj.toDate().toISOString();
+    }
+    if (Array.isArray(obj)) {
+        return obj.map(convertTimestamps);
+    }
+    if (typeof obj === 'object') {
+        const converted = {};
+        for (const [key, value] of Object.entries(obj)) {
+            converted[key] = convertTimestamps(value);
+        }
+        return converted;
+    }
+    return obj;
 }
 //# sourceMappingURL=index.js.map

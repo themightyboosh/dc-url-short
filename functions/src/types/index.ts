@@ -1,19 +1,20 @@
 import { Request } from 'express';
 import { z } from 'zod';
+import { Timestamp } from 'firebase-admin/firestore';
 
 // Link data model
 export const LinkSchema = z.object({
   slug: z.string().min(1).max(50),
   longUrl: z.string().url(),
-  createdAt: z.date(),
+  createdAt: z.instanceof(Timestamp),
   createdBy: z.string().email(),
   disabled: z.boolean().default(false),
   clickCount: z.number().default(0),
-  lastClickedAt: z.date().nullable().default(null),
+  lastClickedAt: z.instanceof(Timestamp).nullable().default(null),
   notes: z.string().optional(),
   tags: z.array(z.string()).optional(),
   emailAlerts: z.boolean().default(false),
-  updatedAt: z.date().optional()
+  updatedAt: z.instanceof(Timestamp).optional()
 });
 
 export const CreateLinkSchema = LinkSchema.omit({
@@ -31,7 +32,7 @@ export const UpdateLinkSchema = LinkSchema.partial().omit({
 // Click data model
 export const ClickSchema = z.object({
   slug: z.string(),
-  ts: z.date(),
+  ts: z.instanceof(Timestamp),
   ip: z.string(),
   userAgent: z.string(),
   referer: z.string().nullable(),

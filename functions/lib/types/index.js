@@ -2,19 +2,20 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClickSchema = exports.UpdateLinkSchema = exports.CreateLinkSchema = exports.LinkSchema = void 0;
 const zod_1 = require("zod");
+const firestore_1 = require("firebase-admin/firestore");
 // Link data model
 exports.LinkSchema = zod_1.z.object({
     slug: zod_1.z.string().min(1).max(50),
     longUrl: zod_1.z.string().url(),
-    createdAt: zod_1.z.date(),
+    createdAt: zod_1.z.instanceof(firestore_1.Timestamp),
     createdBy: zod_1.z.string().email(),
     disabled: zod_1.z.boolean().default(false),
     clickCount: zod_1.z.number().default(0),
-    lastClickedAt: zod_1.z.date().nullable().default(null),
+    lastClickedAt: zod_1.z.instanceof(firestore_1.Timestamp).nullable().default(null),
     notes: zod_1.z.string().optional(),
     tags: zod_1.z.array(zod_1.z.string()).optional(),
     emailAlerts: zod_1.z.boolean().default(false),
-    updatedAt: zod_1.z.date().optional()
+    updatedAt: zod_1.z.instanceof(firestore_1.Timestamp).optional()
 });
 exports.CreateLinkSchema = exports.LinkSchema.omit({
     createdAt: true,
@@ -29,7 +30,7 @@ exports.UpdateLinkSchema = exports.LinkSchema.partial().omit({
 // Click data model
 exports.ClickSchema = zod_1.z.object({
     slug: zod_1.z.string(),
-    ts: zod_1.z.date(),
+    ts: zod_1.z.instanceof(firestore_1.Timestamp),
     ip: zod_1.z.string(),
     userAgent: zod_1.z.string(),
     referer: zod_1.z.string().nullable(),

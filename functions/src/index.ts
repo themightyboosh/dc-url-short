@@ -9,7 +9,10 @@ import {
   updateLink, 
   deleteLink, 
   getClickLogs, 
+  getSettings,
+  updateSettings,
   healthCheck,
+  getDocumentation,
   requireAdmin 
 } from './api';
 import { 
@@ -63,7 +66,10 @@ app.get('/api/v1/links/:slug', requireAdmin, getLink);
 app.patch('/api/v1/links/:slug', requireAdmin, updateLink);
 app.delete('/api/v1/links/:slug', requireAdmin, deleteLink);
 app.get('/api/v1/links/:slug/clicks', requireAdmin, getClickLogs);
+app.get('/api/v1/settings', requireAdmin, getSettings);
+app.patch('/api/v1/settings', requireAdmin, updateSettings);
 app.get('/api/v1/health', healthCheck);
+app.get('/api/v1/docs', getDocumentation);
 
 // Export the Express app as a Cloud Function
 export const api = functions.https.onRequest(app);

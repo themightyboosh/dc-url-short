@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Moni URL Shortener API
+  title: Monumental Link Manager API
   description: Production URL shortener with click tracking for monumental-i.com organization
   version: 1.0.0
   contact:
@@ -44,6 +44,18 @@ paths:
                       version:
                         type: string
                         example: "1.0.0"
+                      documentation:
+                        type: object
+                        properties:
+                          openapi:
+                            type: string
+                            example: https://go.monumental-i.com/openapi.yaml
+                          markdown:
+                            type: string
+                            example: https://go.monumental-i.com/API_DOCUMENTATION.md
+                          admin_panel:
+                            type: string
+                            example: https://go.monumental-i.com/admin/
 
   /api/v1/links:
     post:
@@ -312,6 +324,166 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Click'
+
+  /api/v1/settings:
+    get:
+      summary: Get global settings
+      description: Retrieves global system settings. Requires authentication with @monumental-i.com email.
+      responses:
+        '200':
+          description: Settings retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      globalEmailAlerts:
+                        type: boolean
+                        description: Global email alerts setting
+                        example: false
+        '401':
+          description: Authentication required
+        '403':
+          description: Access restricted to monumental-i.com organization
+
+    patch:
+      summary: Update global settings
+      description: Updates global system settings. Requires authentication with @monumental-i.com email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                globalEmailAlerts:
+                  type: boolean
+                  description: Enable/disable global email alerts
+                  example: true
+      responses:
+        '200':
+          description: Settings updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      globalEmailAlerts:
+                        type: boolean
+                        example: true
+                  message:
+                    type: string
+                    example: Settings updated successfully
+
+  /api/v1/docs:
+    get:
+      summary: Get API documentation
+      description: Returns comprehensive API documentation and endpoint information
+      security: []
+      responses:
+        '200':
+          description: Documentation retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      title:
+                        type: string
+                        example: Monumental Link Manager API
+                      version:
+                        type: string
+                        example: "1.0.0"
+                      description:
+                        type: string
+                        example: Production URL shortener with click tracking for monumental-i.com organization
+                      baseUrl:
+                        type: string
+                        example: https://go.monumental-i.com
+                      authentication:
+                        type: object
+                        properties:
+                          type:
+                            type: string
+                            example: Firebase Auth
+                          required:
+                            type: boolean
+                            example: true
+                          organization:
+                            type: string
+                            example: "@monumental-i.com"
+                      documentation:
+                        type: object
+                        properties:
+                          openapi:
+                            type: string
+                            example: https://go.monumental-i.com/openapi.yaml
+                          markdown:
+                            type: string
+                            example: https://go.monumental-i.com/API_DOCUMENTATION.md
+                          admin_panel:
+                            type: string
+                            example: https://go.monumental-i.com/admin/
+                      endpoints:
+                        type: object
+                        properties:
+                          links:
+                            type: object
+                            properties:
+                              create:
+                                type: string
+                                example: POST /api/v1/links
+                              list:
+                                type: string
+                                example: GET /api/v1/links
+                              get:
+                                type: string
+                                example: GET /api/v1/links/{slug}
+                              update:
+                                type: string
+                                example: PATCH /api/v1/links/{slug}
+                              delete:
+                                type: string
+                                example: DELETE /api/v1/links/{slug}
+                              clicks:
+                                type: string
+                                example: GET /api/v1/links/{slug}/clicks
+                          settings:
+                            type: object
+                            properties:
+                              get:
+                                type: string
+                                example: GET /api/v1/settings
+                              update:
+                                type: string
+                                example: PATCH /api/v1/settings
+                          system:
+                            type: object
+                            properties:
+                              health:
+                                type: string
+                                example: GET /api/v1/health
+                              docs:
+                                type: string
+                                example: GET /api/v1/docs
 
 components:
   securitySchemes:

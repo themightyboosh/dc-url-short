@@ -9,9 +9,11 @@ import {
 } from '../types';
 import { 
   generateSlug, 
+  toKebabCase,
   isValidSlug, 
   sanitizeUrl,
-  createApiResponse 
+  createApiResponse,
+  convertTimestamps
 } from '../utils';
 
 // Get Firestore instance
@@ -51,8 +53,13 @@ export async function createLink(req: AuthenticatedRequest, res: Response) {
   try {
     const validatedData = CreateLinkSchema.parse(req.body);
     
-    // Generate slug if not provided
-    let slug = validatedData.slug || generateSlug();
+    // Generate slug if not provided, or convert provided slug to kebab-case
+    let slug = validatedData.slug ? toKebabCase(validatedData.slug) : generateSlug();
+    
+    // If the converted slug is empty, generate a random one
+    if (!slug) {
+      slug = generateSlug();
+    }
     
     // Check if slug is reserved
     if (RESERVED_SLUGS.includes(slug.toLowerCase())) {
@@ -77,7 +84,11 @@ export async function createLink(req: AuthenticatedRequest, res: Response) {
 
       await getDb().collection('links').doc(slug).set(linkData, { merge: true });
 
-      return res.status(200).json(createApiResponse(true, linkData, undefined, 'Link updated successfully'));
+      // Get the updated document to return with actual timestamps
+      const updatedDoc = await getDb().collection('links').doc(slug).get();
+      const updatedData = { id: updatedDoc.id, ...updatedDoc.data() };
+
+      return res.status(200).json(createApiResponse(true, convertTimestamps(updatedData), undefined, 'Link updated successfully'));
     }
 
     const linkData = {
@@ -91,7 +102,11 @@ export async function createLink(req: AuthenticatedRequest, res: Response) {
 
     await getDb().collection('links').doc(slug).set(linkData);
 
-    return res.status(201).json(createApiResponse(true, linkData, undefined, 'Link created successfully'));
+    // Get the created document to return with actual timestamps
+    const createdDoc = await getDb().collection('links').doc(slug).get();
+    const createdData = { id: createdDoc.id, ...createdDoc.data() };
+
+    return res.status(201).json(createApiResponse(true, convertTimestamps(createdData), undefined, 'Link created successfully'));
   } catch (error) {
     console.error('Error creating link:', error);
     if (error instanceof z.ZodError) {
@@ -125,7 +140,7 @@ export async function listLinks(req: AuthenticatedRequest, res: Response) {
 
     const response: PaginatedResponse<any> = {
       success: true,
-      data: links,
+      data: convertTimestamps(links),
       pagination: {
         limit,
         offset,
@@ -156,7 +171,7 @@ export async function getLink(req: AuthenticatedRequest, res: Response) {
       return res.status(404).json(createApiResponse(false, null, 'Link not found'));
     }
 
-    return res.json(createApiResponse(true, { id: doc.id, ...doc.data() }));
+    return res.json(createApiResponse(true, convertTimestamps({ id: doc.id, ...doc.data() })));
   } catch (error) {
     console.error('Error getting link:', error);
     return res.status(500).json(createApiResponse(false, null, 'Internal server error'));
@@ -188,7 +203,7 @@ export async function updateLink(req: AuthenticatedRequest, res: Response) {
     await docRef.update(updateData);
 
     const updatedDoc = await docRef.get();
-    return res.json(createApiResponse(true, { id: updatedDoc.id, ...updatedDoc.data() }, undefined, 'Link updated successfully'));
+    return res.json(createApiResponse(true, convertTimestamps({ id: updatedDoc.id, ...updatedDoc.data() }), undefined, 'Link updated successfully'));
   } catch (error) {
     console.error('Error updating link:', error);
     if (error instanceof z.ZodError) {
@@ -253,18 +268,101 @@ export async function getClickLogs(req: AuthenticatedRequest, res: Response) {
       ...doc.data()
     }));
 
-    return res.json(createApiResponse(true, clicks));
+    return res.json(createApiResponse(true, convertTimestamps(clicks)));
   } catch (error) {
     console.error('Error getting click logs:', error);
     return res.status(500).json(createApiResponse(false, null, 'Internal server error'));
   }
 }
 
+// GET /api/v1/settings - Get global settings
+export async function getSettings(req: AuthenticatedRequest, res: Response) {
+  try {
+    const settingsDoc = await getDb().collection('settings').doc('global').get();
+    
+    if (!settingsDoc.exists) {
+      // Return default settings
+      const defaultSettings = {
+        globalEmailAlerts: false
+      };
+      return res.json(createApiResponse(true, defaultSettings));
+    }
+
+    return res.json(createApiResponse(true, settingsDoc.data()));
+  } catch (error) {
+    console.error('Error getting settings:', error);
+    return res.status(500).json(createApiResponse(false, null, 'Internal server error'));
+  }
+}
+
+// PATCH /api/v1/settings - Update global settings
+export async function updateSettings(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { globalEmailAlerts } = req.body;
+
+    const updateData: any = {};
+    if (typeof globalEmailAlerts === 'boolean') {
+      updateData.globalEmailAlerts = globalEmailAlerts;
+    }
+
+    await getDb().collection('settings').doc('global').set(updateData, { merge: true });
+
+    const updatedDoc = await getDb().collection('settings').doc('global').get();
+    return res.json(createApiResponse(true, updatedDoc.data(), undefined, 'Settings updated successfully'));
+  } catch (error) {
+    console.error('Error updating settings:', error);
+    return res.status(500).json(createApiResponse(false, null, 'Internal server error'));
+  }
+}
+
 // GET /api/v1/health - Health check
 export async function healthCheck(req: Request, res: Response) {
-    return res.json(createApiResponse(true, { 
-      status: 'healthy', 
-      timestamp: new Date().toISOString(),
-      version: '1.0.0'
-    }));
+  return res.json(createApiResponse(true, {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    documentation: {
+      openapi: 'https://go.monumental-i.com/openapi.yaml',
+      markdown: 'https://go.monumental-i.com/API_DOCUMENTATION.md',
+      admin_panel: 'https://go.monumental-i.com/admin/'
+    }
+  }));
+}
+
+// GET /api/v1/docs - API Documentation
+export async function getDocumentation(req: Request, res: Response) {
+  return res.json(createApiResponse(true, {
+    title: 'Monumental Link Manager API',
+    version: '1.0.0',
+    description: 'Production URL shortener with click tracking for monumental-i.com organization',
+    baseUrl: 'https://go.monumental-i.com',
+    authentication: {
+      type: 'Firebase Auth',
+      required: true,
+      organization: '@monumental-i.com'
+    },
+    documentation: {
+      openapi: 'https://go.monumental-i.com/openapi.yaml',
+      markdown: 'https://go.monumental-i.com/API_DOCUMENTATION.md',
+      admin_panel: 'https://go.monumental-i.com/admin/'
+    },
+    endpoints: {
+      links: {
+        create: 'POST /api/v1/links',
+        list: 'GET /api/v1/links',
+        get: 'GET /api/v1/links/{slug}',
+        update: 'PATCH /api/v1/links/{slug}',
+        delete: 'DELETE /api/v1/links/{slug}',
+        clicks: 'GET /api/v1/links/{slug}/clicks'
+      },
+      settings: {
+        get: 'GET /api/v1/settings',
+        update: 'PATCH /api/v1/settings'
+      },
+      system: {
+        health: 'GET /api/v1/health',
+        docs: 'GET /api/v1/docs'
+      }
+    }
+  }));
 }

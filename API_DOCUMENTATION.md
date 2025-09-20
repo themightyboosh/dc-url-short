@@ -1,7 +1,7 @@
-# Monumental URL Shortener API Documentation
+# Monumental Link Manager API Documentation
 
 ## Overview
-The Monumental URL Shortener provides a comprehensive API for creating, managing, and tracking short URLs. This service is designed for internal use within the Monumental organization and integrates with Google authentication.
+The Monumental Link Manager provides a comprehensive API for creating, managing, and tracking short URLs. This service is designed for internal use within the Monumental organization and integrates with Google authentication.
 
 ## Base URL
 - **Production**: `https://go.monumental-i.com`
@@ -212,7 +212,7 @@ GET /api/v1/links/example-link/clicks?from=2025-09-19T00:00:00.000Z&to=2025-09-1
 ### 7. Health Check
 **GET** `/api/v1/health`
 
-Checks API health status.
+Checks API health status and provides documentation links.
 
 #### Response
 ```json
@@ -221,8 +221,97 @@ Checks API health status.
   "data": {
     "status": "healthy",
     "timestamp": "2025-09-19T23:44:22.000Z",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "documentation": {
+      "openapi": "https://go.monumental-i.com/openapi.yaml",
+      "markdown": "https://go.monumental-i.com/API_DOCUMENTATION.md",
+      "admin_panel": "https://go.monumental-i.com/admin/"
+    }
   }
+}
+```
+
+### 8. API Documentation
+**GET** `/api/v1/docs`
+
+Returns comprehensive API documentation and endpoint information.
+
+#### Response
+```json
+{
+  "success": true,
+  "data": {
+    "title": "Monumental Link Manager API",
+    "version": "1.0.0",
+    "description": "Production URL shortener with click tracking for monumental-i.com organization",
+    "baseUrl": "https://go.monumental-i.com",
+    "authentication": {
+      "type": "Firebase Auth",
+      "required": true,
+      "organization": "@monumental-i.com"
+    },
+    "documentation": {
+      "openapi": "https://go.monumental-i.com/openapi.yaml",
+      "markdown": "https://go.monumental-i.com/API_DOCUMENTATION.md",
+      "admin_panel": "https://go.monumental-i.com/admin/"
+    },
+    "endpoints": {
+      "links": {
+        "create": "POST /api/v1/links",
+        "list": "GET /api/v1/links",
+        "get": "GET /api/v1/links/{slug}",
+        "update": "PATCH /api/v1/links/{slug}",
+        "delete": "DELETE /api/v1/links/{slug}",
+        "clicks": "GET /api/v1/links/{slug}/clicks"
+      },
+      "settings": {
+        "get": "GET /api/v1/settings",
+        "update": "PATCH /api/v1/settings"
+      },
+      "system": {
+        "health": "GET /api/v1/health",
+        "docs": "GET /api/v1/docs"
+      }
+    }
+  }
+}
+```
+
+### 9. Get Global Settings
+**GET** `/api/v1/settings`
+
+Retrieves global system settings. Requires authentication with @monumental-i.com email.
+
+#### Response
+```json
+{
+  "success": true,
+  "data": {
+    "globalEmailAlerts": false
+  }
+}
+```
+
+### 10. Update Global Settings
+**PATCH** `/api/v1/settings`
+
+Updates global system settings. Requires authentication with @monumental-i.com email.
+
+#### Request Body
+```json
+{
+  "globalEmailAlerts": true
+}
+```
+
+#### Response
+```json
+{
+  "success": true,
+  "data": {
+    "globalEmailAlerts": true
+  },
+  "message": "Settings updated successfully"
 }
 ```
 
@@ -259,6 +348,21 @@ When accessed, they:
 2. Increment click count
 3. Update last clicked timestamp
 4. Redirect to the original URL
+
+### Slug Formatting (Kebab-Case)
+All custom slugs are automatically converted to kebab-case format:
+- **Lowercase**: All letters are converted to lowercase
+- **Hyphens**: Spaces and special characters are replaced with hyphens
+- **Clean**: Multiple consecutive hyphens are collapsed to single hyphens
+- **Trimmed**: Leading and trailing hyphens are removed
+
+#### Examples:
+- `"My Custom Slug!"` → `"my-custom-slug"`
+- `"Marketing Campaign 2024"` → `"marketing-campaign-2024"`
+- `"API_Documentation"` → `"api-documentation"`
+- `"test@#$%slug"` → `"testslug"`
+
+If the converted slug is empty or invalid, a random slug will be generated automatically.
 
 ### Reserved Slugs
 The following slugs are reserved and cannot be used:

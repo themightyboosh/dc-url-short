@@ -1,5 +1,6 @@
 import { promises as dns } from 'dns';
 import axios from 'axios';
+import { Timestamp } from 'firebase-admin/firestore';
 
 export function generateSlug(length: number = 6): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -10,8 +11,17 @@ export function generateSlug(length: number = 6): string {
   return result;
 }
 
+export function toKebabCase(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+    .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+}
+
 export function isValidSlug(slug: string): boolean {
-  return /^[a-zA-Z0-9_-]+$/.test(slug) && slug.length >= 1 && slug.length <= 50;
+  return /^[a-z0-9-]+$/.test(slug) && slug.length >= 1 && slug.length <= 50;
 }
 
 export async function reverseDnsLookup(ip: string): Promise<string | null> {
@@ -123,4 +133,29 @@ export function createApiResponse<T>(
   if (error) response.error = error;
   if (message) response.message = message;
   return response;
+}
+
+// Convert Firestore timestamps to JavaScript dates for API responses
+export function convertTimestamps(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  
+  if (obj instanceof Timestamp) {
+    return obj.toDate().toISOString();
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(convertTimestamps);
+  }
+  
+  if (typeof obj === 'object') {
+    const converted: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      converted[key] = convertTimestamps(value);
+    }
+    return converted;
+  }
+  
+  return obj;
 }

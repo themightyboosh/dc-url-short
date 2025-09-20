@@ -40,7 +40,10 @@ exports.getLink = getLink;
 exports.updateLink = updateLink;
 exports.deleteLink = deleteLink;
 exports.getClickLogs = getClickLogs;
+exports.getSettings = getSettings;
+exports.updateSettings = updateSettings;
 exports.healthCheck = healthCheck;
+exports.getDocumentation = getDocumentation;
 const admin = __importStar(require("firebase-admin"));
 const zod_1 = require("zod");
 const types_1 = require("../types");
@@ -76,8 +79,12 @@ const RESERVED_SLUGS = [
 async function createLink(req, res) {
     try {
         const validatedData = types_1.CreateLinkSchema.parse(req.body);
-        // Generate slug if not provided
-        let slug = validatedData.slug || (0, utils_1.generateSlug)();
+        // Generate slug if not provided, or convert provided slug to kebab-case
+        let slug = validatedData.slug ? (0, utils_1.toKebabCase)(validatedData.slug) : (0, utils_1.generateSlug)();
+        // If the converted slug is empty, generate a random one
+        if (!slug) {
+            slug = (0, utils_1.generateSlug)();
+        }
         // Check if slug is reserved
         if (RESERVED_SLUGS.includes(slug.toLowerCase())) {
             return res.status(400).json((0, utils_1.createApiResponse)(false, null, 'Slug is reserved and cannot be used'));
@@ -89,11 +96,17 @@ async function createLink(req, res) {
             const existingData = existing.data();
             const linkData = Object.assign(Object.assign({}, validatedData), { slug, longUrl: (0, utils_1.sanitizeUrl)(validatedData.longUrl), createdAt: (existingData === null || existingData === void 0 ? void 0 : existingData.createdAt) || admin.firestore.FieldValue.serverTimestamp(), clickCount: (existingData === null || existingData === void 0 ? void 0 : existingData.clickCount) || 0, lastClickedAt: (existingData === null || existingData === void 0 ? void 0 : existingData.lastClickedAt) || null, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
             await getDb().collection('links').doc(slug).set(linkData, { merge: true });
-            return res.status(200).json((0, utils_1.createApiResponse)(true, linkData, undefined, 'Link updated successfully'));
+            // Get the updated document to return with actual timestamps
+            const updatedDoc = await getDb().collection('links').doc(slug).get();
+            const updatedData = Object.assign({ id: updatedDoc.id }, updatedDoc.data());
+            return res.status(200).json((0, utils_1.createApiResponse)(true, (0, utils_1.convertTimestamps)(updatedData), undefined, 'Link updated successfully'));
         }
         const linkData = Object.assign(Object.assign({}, validatedData), { slug, longUrl: (0, utils_1.sanitizeUrl)(validatedData.longUrl), createdAt: admin.firestore.FieldValue.serverTimestamp(), clickCount: 0, lastClickedAt: null });
         await getDb().collection('links').doc(slug).set(linkData);
-        return res.status(201).json((0, utils_1.createApiResponse)(true, linkData, undefined, 'Link created successfully'));
+        // Get the created document to return with actual timestamps
+        const createdDoc = await getDb().collection('links').doc(slug).get();
+        const createdData = Object.assign({ id: createdDoc.id }, createdDoc.data());
+        return res.status(201).json((0, utils_1.createApiResponse)(true, (0, utils_1.convertTimestamps)(createdData), undefined, 'Link created successfully'));
     }
     catch (error) {
         console.error('Error creating link:', error);
@@ -119,7 +132,7 @@ async function listLinks(req, res) {
         const links = snapshot.docs.map(doc => (Object.assign({ id: doc.id }, doc.data())));
         const response = {
             success: true,
-            data: links,
+            data: (0, utils_1.convertTimestamps)(links),
             pagination: {
                 limit,
                 offset,
@@ -145,7 +158,7 @@ async function getLink(req, res) {
         if (!doc.exists) {
             return res.status(404).json((0, utils_1.createApiResponse)(false, null, 'Link not found'));
         }
-        return res.json((0, utils_1.createApiResponse)(true, Object.assign({ id: doc.id }, doc.data())));
+        return res.json((0, utils_1.createApiResponse)(true, (0, utils_1.convertTimestamps)(Object.assign({ id: doc.id }, doc.data()))));
     }
     catch (error) {
         console.error('Error getting link:', error);
@@ -171,7 +184,7 @@ async function updateLink(req, res) {
         }
         await docRef.update(updateData);
         const updatedDoc = await docRef.get();
-        return res.json((0, utils_1.createApiResponse)(true, Object.assign({ id: updatedDoc.id }, updatedDoc.data()), undefined, 'Link updated successfully'));
+        return res.json((0, utils_1.createApiResponse)(true, (0, utils_1.convertTimestamps)(Object.assign({ id: updatedDoc.id }, updatedDoc.data())), undefined, 'Link updated successfully'));
     }
     catch (error) {
         console.error('Error updating link:', error);
@@ -223,10 +236,45 @@ async function getClickLogs(req, res) {
         }
         const snapshot = await query.limit(limit).offset(offset).get();
         const clicks = snapshot.docs.map(doc => (Object.assign({ id: doc.id }, doc.data())));
-        return res.json((0, utils_1.createApiResponse)(true, clicks));
+        return res.json((0, utils_1.createApiResponse)(true, (0, utils_1.convertTimestamps)(clicks)));
     }
     catch (error) {
         console.error('Error getting click logs:', error);
+        return res.status(500).json((0, utils_1.createApiResponse)(false, null, 'Internal server error'));
+    }
+}
+// GET /api/v1/settings - Get global settings
+async function getSettings(req, res) {
+    try {
+        const settingsDoc = await getDb().collection('settings').doc('global').get();
+        if (!settingsDoc.exists) {
+            // Return default settings
+            const defaultSettings = {
+                globalEmailAlerts: false
+            };
+            return res.json((0, utils_1.createApiResponse)(true, defaultSettings));
+        }
+        return res.json((0, utils_1.createApiResponse)(true, settingsDoc.data()));
+    }
+    catch (error) {
+        console.error('Error getting settings:', error);
+        return res.status(500).json((0, utils_1.createApiResponse)(false, null, 'Internal server error'));
+    }
+}
+// PATCH /api/v1/settings - Update global settings
+async function updateSettings(req, res) {
+    try {
+        const { globalEmailAlerts } = req.body;
+        const updateData = {};
+        if (typeof globalEmailAlerts === 'boolean') {
+            updateData.globalEmailAlerts = globalEmailAlerts;
+        }
+        await getDb().collection('settings').doc('global').set(updateData, { merge: true });
+        const updatedDoc = await getDb().collection('settings').doc('global').get();
+        return res.json((0, utils_1.createApiResponse)(true, updatedDoc.data(), undefined, 'Settings updated successfully'));
+    }
+    catch (error) {
+        console.error('Error updating settings:', error);
         return res.status(500).json((0, utils_1.createApiResponse)(false, null, 'Internal server error'));
     }
 }
@@ -235,7 +283,49 @@ async function healthCheck(req, res) {
     return res.json((0, utils_1.createApiResponse)(true, {
         status: 'healthy',
         timestamp: new Date().toISOString(),
-        version: '1.0.0'
+        version: '1.0.0',
+        documentation: {
+            openapi: 'https://go.monumental-i.com/openapi.yaml',
+            markdown: 'https://go.monumental-i.com/API_DOCUMENTATION.md',
+            admin_panel: 'https://go.monumental-i.com/admin/'
+        }
+    }));
+}
+// GET /api/v1/docs - API Documentation
+async function getDocumentation(req, res) {
+    return res.json((0, utils_1.createApiResponse)(true, {
+        title: 'Monumental Link Manager API',
+        version: '1.0.0',
+        description: 'Production URL shortener with click tracking for monumental-i.com organization',
+        baseUrl: 'https://go.monumental-i.com',
+        authentication: {
+            type: 'Firebase Auth',
+            required: true,
+            organization: '@monumental-i.com'
+        },
+        documentation: {
+            openapi: 'https://go.monumental-i.com/openapi.yaml',
+            markdown: 'https://go.monumental-i.com/API_DOCUMENTATION.md',
+            admin_panel: 'https://go.monumental-i.com/admin/'
+        },
+        endpoints: {
+            links: {
+                create: 'POST /api/v1/links',
+                list: 'GET /api/v1/links',
+                get: 'GET /api/v1/links/{slug}',
+                update: 'PATCH /api/v1/links/{slug}',
+                delete: 'DELETE /api/v1/links/{slug}',
+                clicks: 'GET /api/v1/links/{slug}/clicks'
+            },
+            settings: {
+                get: 'GET /api/v1/settings',
+                update: 'PATCH /api/v1/settings'
+            },
+            system: {
+                health: 'GET /api/v1/health',
+                docs: 'GET /api/v1/docs'
+            }
+        }
     }));
 }
 //# sourceMappingURL=index.js.map

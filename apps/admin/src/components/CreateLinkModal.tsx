@@ -21,11 +21,22 @@ import {
   Tag,
   TagLabel,
   TagCloseButton,
-  Checkbox
+  Checkbox,
+  Box
 } from '@chakra-ui/react'
 import { PlusIcon } from 'lucide-react'
 import { linksApi, CreateLinkData } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
+
+// Helper function to convert to kebab-case (same as backend)
+function toKebabCase(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+    .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+}
 
 interface CreateLinkModalProps {
   isOpen: boolean
@@ -147,20 +158,30 @@ export default function CreateLinkModal({ isOpen, onClose }: CreateLinkModalProp
                 <FormErrorMessage>{errors.longUrl}</FormErrorMessage>
               </FormControl>
 
-              <FormControl>
-                <FormLabel>Custom Slug (optional)</FormLabel>
-                <Input
-                  placeholder="my-custom-slug"
-                  value={formData.slug}
-                  onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
-                  bg="gray.700"
-                  borderColor="gray.600"
-                  _focus={{ borderColor: 'brand.500' }}
-                />
-                <Text fontSize="sm" color="gray.400" mt={1}>
-                  If empty, a random slug will be generated
-                </Text>
-              </FormControl>
+                  <FormControl>
+                    <FormLabel>Custom Slug (optional)</FormLabel>
+                    <Input
+                      placeholder="my-custom-slug"
+                      value={formData.slug}
+                      onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
+                      bg="gray.700"
+                      borderColor="gray.600"
+                      _focus={{ borderColor: 'brand.500' }}
+                    />
+                    {formData.slug && (
+                      <Box mt={2} p={2} bg="gray.600" borderRadius="md">
+                        <Text fontSize="sm" color="gray.300" mb={1}>
+                          Preview (will be converted to kebab-case):
+                        </Text>
+                        <Text fontFamily="mono" fontSize="sm" color="brand.400">
+                          {toKebabCase(formData.slug) || 'Invalid slug'}
+                        </Text>
+                      </Box>
+                    )}
+                    <Text fontSize="sm" color="gray.400" mt={1}>
+                      If empty, a random slug will be generated. Special characters will be removed and spaces converted to hyphens.
+                    </Text>
+                  </FormControl>
 
               <FormControl>
                 <FormLabel>Email Alerts</FormLabel>

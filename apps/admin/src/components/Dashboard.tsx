@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from 'react-query'
+import { useQuery, useMutation, useQueryClient } from 'react-query'
 import {
   Box,
   Button,
@@ -26,10 +26,11 @@ import {
   Stat,
   StatLabel,
   StatNumber,
-  SimpleGrid
+  SimpleGrid,
+  Checkbox
 } from '@chakra-ui/react'
 import { SearchIcon, PlusIcon, CopyIcon, ExternalLinkIcon, BarChart3Icon } from 'lucide-react'
-import { linksApi } from '../lib/api'
+import { linksApi, settingsApi } from '../lib/api'
 import CreateLinkModal from './CreateLinkModal'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -38,6 +39,7 @@ export default function Dashboard() {
   const [page, setPage] = useState(0)
   const { isOpen, onOpen, onClose } = useDisclosure()
   const toast = useToast()
+  const queryClient = useQueryClient()
 
   const { data: linksData, isLoading, error } = useQuery(
     ['links', page, searchTerm],
@@ -48,6 +50,37 @@ export default function Dashboard() {
     }),
     {
       keepPreviousData: true,
+    }
+  )
+
+  const { data: settings } = useQuery(
+    'settings',
+    () => settingsApi.get(),
+    {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    }
+  )
+
+  const updateSettingsMutation = useMutation(
+    (data: { globalEmailAlerts: boolean }) => settingsApi.update(data),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('settings')
+        toast({
+          title: 'Settings updated successfully',
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        })
+      },
+      onError: () => {
+        toast({
+          title: 'Failed to update settings',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        })
+      }
     }
   )
 
@@ -104,9 +137,30 @@ export default function Dashboard() {
         </Stat>
       </SimpleGrid>
 
+      {/* Global Settings */}
+      <Box bg="gray.800" p={6} borderRadius="lg" border="1px" borderColor="gray.700">
+        <VStack spacing={4} align="stretch">
+          <Heading size="md">Global Settings</Heading>
+          <HStack justifyContent="space-between">
+            <VStack align="start" spacing={1}>
+              <Text fontWeight="medium">Email Alerts</Text>
+              <Text fontSize="sm" color="gray.400">
+                Enable email notifications for all link clicks
+              </Text>
+            </VStack>
+            <Checkbox
+              isChecked={settings?.globalEmailAlerts || false}
+              onChange={(e) => updateSettingsMutation.mutate({ globalEmailAlerts: e.target.checked })}
+              colorScheme="brand"
+              size="lg"
+            />
+          </HStack>
+        </VStack>
+      </Box>
+
       {/* Header */}
       <Flex justifyContent="space-between" alignItems="center">
-        <Heading size="lg">Monumental URL Shortener</Heading>
+        <Heading size="lg">Monumental Link Manager</Heading>
         <Button
           leftIcon={<PlusIcon size={16} />}
           colorScheme="brand"

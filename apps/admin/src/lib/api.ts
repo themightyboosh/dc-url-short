@@ -74,6 +74,21 @@ export interface UpdateLinkData {
   emailAlerts?: boolean
 }
 
+export interface Settings {
+  globalEmailAlerts: boolean
+}
+
+export const settingsApi = {
+  get: async (): Promise<Settings> => {
+    const response = await api.get('/api/v1/settings')
+    return response.data.data
+  },
+  update: async (data: Partial<Settings>): Promise<Settings> => {
+    const response = await api.patch('/api/v1/settings', data)
+    return response.data.data
+  }
+}
+
 export const linksApi = {
   create: async (data: CreateLinkData): Promise<Link> => {
     const response = await api.post('/api/v1/links', data)

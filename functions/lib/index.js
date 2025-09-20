@@ -83,7 +83,10 @@ app.get('/api/v1/links/:slug', api_1.requireAdmin, api_1.getLink);
 app.patch('/api/v1/links/:slug', api_1.requireAdmin, api_1.updateLink);
 app.delete('/api/v1/links/:slug', api_1.requireAdmin, api_1.deleteLink);
 app.get('/api/v1/links/:slug/clicks', api_1.requireAdmin, api_1.getClickLogs);
+app.get('/api/v1/settings', api_1.requireAdmin, api_1.getSettings);
+app.patch('/api/v1/settings', api_1.requireAdmin, api_1.updateSettings);
 app.get('/api/v1/health', api_1.healthCheck);
+app.get('/api/v1/docs', api_1.getDocumentation);
 // Export the Express app as a Cloud Function
 exports.api = functions.https.onRequest(app);
 // Redirect function for short URLs

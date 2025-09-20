@@ -317,16 +317,46 @@ export async function updateSettings(req: AuthenticatedRequest, res: Response) {
 
 // GET /api/v1/health - Health check
 export async function healthCheck(req: Request, res: Response) {
-  return res.json(createApiResponse(true, {
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0',
-    documentation: {
-      openapi: 'https://go.monumental-i.com/openapi.yaml',
-      markdown: 'https://go.monumental-i.com/API_DOCUMENTATION.md',
-      admin_panel: 'https://go.monumental-i.com/admin/'
+  try {
+    const startTime = Date.now();
+    
+    // Test database connectivity
+    let dbStatus = 'healthy';
+    try {
+      await getDb().collection('links').limit(1).get();
+      dbStatus = 'healthy';
+    } catch (error) {
+      dbStatus = 'unhealthy';
+      console.error('Database health check failed:', error);
     }
-  }));
+    
+    const responseTime = Date.now() - startTime;
+    
+    return res.json(createApiResponse(true, {
+      status: dbStatus === 'healthy' ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      responseTime: `${responseTime}ms`,
+      services: {
+        database: dbStatus,
+        functions: 'healthy',
+        hosting: 'healthy'
+      },
+      uptime: process.uptime(),
+      documentation: {
+        openapi: 'https://go.monumental-i.com/openapi.yaml',
+        markdown: 'https://go.monumental-i.com/API_DOCUMENTATION.md',
+        admin_panel: 'https://go.monumental-i.com/admin/'
+      }
+    }));
+  } catch (error) {
+    console.error('Health check error:', error);
+    return res.status(500).json(createApiResponse(false, {
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: 'Health check failed'
+    }));
+  }
 }
 
 // GET /api/v1/docs - API Documentation

@@ -280,16 +280,45 @@ async function updateSettings(req, res) {
 }
 // GET /api/v1/health - Health check
 async function healthCheck(req, res) {
-    return res.json((0, utils_1.createApiResponse)(true, {
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        version: '1.0.0',
-        documentation: {
-            openapi: 'https://go.monumental-i.com/openapi.yaml',
-            markdown: 'https://go.monumental-i.com/API_DOCUMENTATION.md',
-            admin_panel: 'https://go.monumental-i.com/admin/'
+    try {
+        const startTime = Date.now();
+        // Test database connectivity
+        let dbStatus = 'healthy';
+        try {
+            await getDb().collection('links').limit(1).get();
+            dbStatus = 'healthy';
         }
-    }));
+        catch (error) {
+            dbStatus = 'unhealthy';
+            console.error('Database health check failed:', error);
+        }
+        const responseTime = Date.now() - startTime;
+        return res.json((0, utils_1.createApiResponse)(true, {
+            status: dbStatus === 'healthy' ? 'healthy' : 'degraded',
+            timestamp: new Date().toISOString(),
+            version: '1.0.0',
+            responseTime: `${responseTime}ms`,
+            services: {
+                database: dbStatus,
+                functions: 'healthy',
+                hosting: 'healthy'
+            },
+            uptime: process.uptime(),
+            documentation: {
+                openapi: 'https://go.monumental-i.com/openapi.yaml',
+                markdown: 'https://go.monumental-i.com/API_DOCUMENTATION.md',
+                admin_panel: 'https://go.monumental-i.com/admin/'
+            }
+        }));
+    }
+    catch (error) {
+        console.error('Health check error:', error);
+        return res.status(500).json((0, utils_1.createApiResponse)(false, {
+            status: 'unhealthy',
+            timestamp: new Date().toISOString(),
+            error: 'Health check failed'
+        }));
+    }
 }
 // GET /api/v1/docs - API Documentation
 async function getDocumentation(req, res) {

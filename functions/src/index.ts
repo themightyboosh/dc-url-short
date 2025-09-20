@@ -79,15 +79,15 @@ export const redirect = functions.https.onRequest(async (req, res) => {
   try {
     const path = req.path;
     
-        // Skip admin routes, API routes, and static files
-        if (path.startsWith('/admin') || 
-            path.startsWith('/api') || 
-            path.startsWith('/assets') ||
-            path.startsWith('/static') ||
-            path.includes('.')) {
-          res.status(404).json({ error: 'Not found' });
-          return;
-        }
+    // Skip admin routes, API routes, and static files
+    if (path.startsWith('/admin') || 
+        path.startsWith('/api') || 
+        path.startsWith('/assets') ||
+        path.startsWith('/static') ||
+        path.includes('.')) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
     
     // Extract slug from path (remove leading slash)
     const slug = path.substring(1);
@@ -97,8 +97,21 @@ export const redirect = functions.https.onRequest(async (req, res) => {
       return;
     }
 
+    // Validate slug format
+    if (!/^[a-z0-9-]+$/.test(slug) || slug.length > 50) {
+      res.status(404).json({ error: 'Invalid short URL' });
+      return;
+    }
+
     const db = admin.firestore();
-    const linkDoc = await db.collection('links').doc(slug).get();
+    
+    // Add timeout protection
+    const linkPromise = db.collection('links').doc(slug).get();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Database timeout')), 5000)
+    );
+    
+    const linkDoc = await Promise.race([linkPromise, timeoutPromise]) as any;
 
     if (!linkDoc.exists) {
       res.status(404).json({ error: 'Short URL not found' });
@@ -112,24 +125,44 @@ export const redirect = functions.https.onRequest(async (req, res) => {
       return;
     }
 
-    // Fire-and-forget click logging
+    // Validate long URL
+    if (!linkData?.longUrl) {
+      res.status(500).json({ error: 'Invalid link configuration' });
+      return;
+    }
+
+    // Fire-and-forget click logging with error isolation
     logClick(slug, req).catch(error => {
-      console.error('Click logging failed:', error);
+      console.error('Click logging failed (non-critical):', error);
+      // Don't fail the redirect for logging errors
     });
 
-    // Update click count and last clicked timestamp
+    // Update click count with error isolation
     db.collection('links').doc(slug).update({
       clickCount: admin.firestore.FieldValue.increment(1),
       lastClickedAt: admin.firestore.FieldValue.serverTimestamp()
     }).catch(error => {
-      console.error('Click count update failed:', error);
+      console.error('Click count update failed (non-critical):', error);
+      // Don't fail the redirect for count update errors
     });
 
     // Redirect to the long URL
-    res.redirect(302, linkData?.longUrl || '');
+    res.redirect(302, linkData.longUrl);
   } catch (error) {
     console.error('Redirect error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    
+    // Graceful degradation - try to redirect to a fallback page
+    if ((error as Error).message === 'Database timeout') {
+      res.status(503).json({ 
+        error: 'Service temporarily unavailable',
+        message: 'Please try again in a moment'
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Internal server error',
+        message: 'Please try again later'
+      });
+    }
   }
 });
 

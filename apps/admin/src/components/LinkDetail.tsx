@@ -27,9 +27,8 @@ import {
   Tooltip
 } from '@chakra-ui/react'
 import { ArrowLeftIcon, CopyIcon, ExternalLinkIcon } from 'lucide-react'
-import { linksApi, Click, UpdateLinkData } from '../lib/api'
+import { linksApi, UpdateLinkData } from '../lib/api'
 import { formatDistanceToNow, format } from 'date-fns'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 
 export default function LinkDetail() {
   const { slug } = useParams<{ slug: string }>()
@@ -90,32 +89,11 @@ export default function LinkDetail() {
     })
   }
 
-  const getShortUrl = (slug: string) => {
-    return `https://go.monumental-i.com/${slug}`
-  }
-
-  // Process clicks data for chart
-  const processClicksForChart = (clicks: Click[]) => {
-    const dailyClicks: Record<string, number> = {}
-    
-    clicks.forEach(click => {
-      try {
-        const date = new Date(click.ts);
-        if (!isNaN(date.getTime())) {
-          const dateStr = format(date, 'yyyy-MM-dd');
-          dailyClicks[dateStr] = (dailyClicks[dateStr] || 0) + 1;
-        }
-      } catch {
-        // Skip invalid dates
+      const getShortUrl = (slug: string) => {
+        return `https://go.monumental-i.com/${slug}`
       }
-    })
 
-    return Object.entries(dailyClicks)
-      .map(([date, count]) => ({ date, clicks: count }))
-      .sort((a, b) => a.date.localeCompare(b.date))
-  }
-
-  if (linkLoading) {
+      if (linkLoading) {
     return (
       <Center h="400px">
         <Spinner size="xl" color="brand.500" />
@@ -123,17 +101,15 @@ export default function LinkDetail() {
     )
   }
 
-  if (!link) {
-    return (
-      <Center h="400px">
-        <Text color="red.400">Link not found</Text>
-      </Center>
-    )
-  }
+      if (!link) {
+        return (
+          <Center h="400px">
+            <Text color="red.400">Link not found</Text>
+          </Center>
+        )
+      }
 
-  const chartData = clicks ? processClicksForChart(clicks) : []
-
-  return (
+      return (
     <VStack spacing={6} align="stretch">
       {/* Header */}
       <HStack justifyContent="space-between">
@@ -267,38 +243,6 @@ export default function LinkDetail() {
         </Stat>
       </SimpleGrid>
 
-      {/* Chart */}
-      {chartData.length > 0 && (
-        <Box bg="gray.800" p={6} borderRadius="lg" border="1px" borderColor="gray.700">
-          <Heading size="md" mb={4}>Click Trends</Heading>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="gray.600" />
-              <XAxis 
-                dataKey="date" 
-                stroke="gray.400"
-                fontSize={12}
-              />
-              <YAxis stroke="gray.400" fontSize={12} />
-              <RechartsTooltip 
-                contentStyle={{ 
-                  backgroundColor: 'gray.700', 
-                  border: '1px solid gray.600',
-                  borderRadius: '8px',
-                  color: 'white'
-                }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="clicks" 
-                stroke="#0ea5e9" 
-                strokeWidth={2}
-                dot={{ fill: '#0ea5e9', strokeWidth: 2, r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </Box>
-      )}
 
       {/* Recent Clicks */}
       <Box bg="gray.800" borderRadius="lg" border="1px" borderColor="gray.700" overflow="hidden">

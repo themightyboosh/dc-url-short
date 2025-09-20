@@ -58,6 +58,9 @@ export default function Dashboard() {
     () => settingsApi.get(),
     {
       staleTime: 5 * 60 * 1000, // 5 minutes
+      onError: (error: any) => {
+        console.error('Settings fetch error:', error)
+      }
     }
   )
 
@@ -73,11 +76,13 @@ export default function Dashboard() {
           isClosable: true,
         })
       },
-      onError: () => {
+      onError: (error: any) => {
+        console.error('Settings update error:', error)
         toast({
           title: 'Failed to update settings',
+          description: error.response?.data?.error || error.message || 'Please try again',
           status: 'error',
-          duration: 3000,
+          duration: 5000,
           isClosable: true,
         })
       }
@@ -153,6 +158,7 @@ export default function Dashboard() {
               onChange={(e) => updateSettingsMutation.mutate({ globalEmailAlerts: e.target.checked })}
               colorScheme="brand"
               size="lg"
+              isDisabled={updateSettingsMutation.isLoading}
             />
           </HStack>
         </VStack>
